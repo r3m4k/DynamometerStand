@@ -11,7 +11,7 @@ SYSTEM := windows
 PROGRAM_NAME := STM_PROJECT
 
 # Директория с исходным кодом относительно Makefile.mk
-SOURCE_DIR = D:/Job/STM_Gyronavt
+SOURCE_DIR = D:/Job/18шка/Динамометрический стенд/Embedded
 
 # Название итогового исполняемого файла
 BINARY = ${PROGRAM_NAME}.elf
