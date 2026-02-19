@@ -38,16 +38,18 @@ __IO uint8_t PrevXferComplete = 1;
 __IO uint8_t buttonState;
 // ===============================================================================
 
-// ----------------------------------------------------------------------------
-// Сообщения, которые будем отправлять в ответ по COM порту (определены в COM_Port.hpp)
-extern uint8_t ErrorMessage[MaxCommand_Length];
-extern uint8_t ConfirmMessage[MaxCommand_Length];
-extern uint8_t EndOfInitialSetting[MaxCommand_Length];
 
 /* Global variables ---------------------------------------------------------*/
+typedef void
+(* const pHandler)(void);
+
 extern pHandler __isr_vectors[];
 
 // ----------------------------------------------------------------------------
+#define IST_VECTORS_NUM     98      // Количество векторов прерываний
+#define InitFrameNum        256     // Количество пакетов для выставки
+#define MessageLen          8       // Длина информационных сообщений
+ 
 
 // Собственная таблица прерываний
 __attribute__((aligned(128)))    // Cortex-M4 требует выравнивание по 128 байт!
@@ -60,7 +62,7 @@ enum class ProgramStages{
     BeforeBeginning,    // Фиктивная стадия программы (необходима для индикации первой смены стадии программы)
     FooStage,           // Данные с датчиков считываются, но не фильтруются и не отправляются
     InitialSetting,     // Сбор и отправка данных для выставки 
-    Measuring           // Сбор и отправка данных с частотой 4 Гц
+    Measuring,          // Сбор и отправка данных с частотой 4 Гц
 };
 
 // Тк будем менять стадии программы из других файлов, то разместим стадии в глобальной зоне видимости
@@ -84,7 +86,7 @@ STM_CppLib::LSM303DLHC  sensor_LSM303DLHC;      // Встроенный датч
 STM_CppLib::Commands::CommandManager command_manager;
 
 // Интерфейсы связи
-STM_CppLib::ComPort com_port;
+STM_CppLib::ComPort::ComPort com_port;
 
 // Используемые таймеры
 STM_CppLib::STM_Timer::Timer3<[](){
@@ -105,14 +107,14 @@ STM_CppLib::STM_Timer::Timer4<[](){
 
 int main()
 {
-    /* ***********************************************************************
+    /* ***************************************************************************
     * Загрузим собственную таблицу прерываний для возможности её модификации
-    *********************************************************************** */
+    *************************************************************************** */
 
     __disable_irq();    // Отключим прерывания
 
     // Скопируем исходную таблицу прерываний
-    memcpy(_user_vector_table, __isr_vectors, IST_VECTORS_NUM);
+    memcpy(_user_vector_table, __isr_vectors, IST_VECTORS_NUM * sizeof(pHandler));
 
     SCB->VTOR = (uint32_t)_user_vector_table;
 
@@ -142,17 +144,23 @@ int main()
     // ---------------------------------------------------------------------------
 
     // Используемые фильтры
-    NSigmaFilter<2.0f, 4, 16> filter_acc;
-    NSigmaFilter<2.0f, 4, 16> filter_gyro;
+    NSigmaFilter<TriaxialData, 4, 16> filter_acc(2.0);     // Фильтр ускорений
+    NSigmaFilter<TriaxialData, 4, 16> filter_gyro(2.0);    // Фильтр угловой скорости 
+    NSigmaFilter<float, 1, 16>        filter_temp(2.0);    // Фильтр температуры
 
-    // Значения ускорений и угловой скорости для отправки
+    // Значения ускорений, угловой скорости и температуры для отправки
     TriaxialData acc_value;
     TriaxialData gyro_value;
+    float temp_value;
 
     // Посылка данных
+    // TODO: в дальнейшем, надо добавить датчик ДПП и пульт 
     STM_CppLib::STM_Packages::TelegaPackage telega_package(
-        &acc_value, &gyro_value, &acc_value
+        &acc_value, &gyro_value, &temp_value
     );
+
+    // Счётчик, необходимый для снижения частоты опроса температурного датчика
+    uint8_t sensor_reading_counter = 0;     
 
     // ---------------------------------------------------------------------------
     // Основной цикл программы
@@ -174,10 +182,14 @@ int main()
         switch (stage)
         {
         case ProgramStages::FooStage:
-            if (previous_stage != FooStage){
-                previous_stage = FooStage;
+            if (previous_stage != ProgramStages::FooStage){
+                previous_stage = ProgramStages::FooStage;
+                // Выключим все таймеры
+                timer3.Stop();
+                timer3.ResetCounter();
                 timer4.Stop();
                 timer4.ResetCounter();
+                // Включим все светодиоды
                 leds.LedsOn();
             }
 
@@ -189,56 +201,71 @@ int main()
             break;
 
         case ProgramStages::InitialSetting:
-            if (previous_stage != InitialSetting){
-                previous_stage = InitialSetting;
+            if (previous_stage != ProgramStages::InitialSetting){
+                previous_stage = ProgramStages::InitialSetting;
                 tick_counter = 0;
+                sensor_reading_counter = 0;
                 leds.LedsOff();
                 timer4.ResetCounter();
                 timer4.Start();
             }
 
-            // Количество пакетов для выставки датчиков
-            constexpr int FilterFrame_num = 256;
-
             // Сбросим фильтры перед сбором данных
             filter_acc.reset();
             filter_gyro.reset();
+            filter_temp.reset();
 
-            for(int i = 0; i < FilterFrame_num; i++){
-                while(!filter_acc.is_data_filtered() || !filter_gyro.is_data_filtered()){
-                    // Считаем значения
-                    sensor_L3GD20.ReadData();
-                    sensor_LSM303DLHC.ReadData();
-    
-                    // Добавим полученные значения в фильтры
-                    filter_acc.append_value(sensor_LSM303DLHC.acc_data);
+            for(int i = 0; i < InitFrameNum; i++){
+
+                /* ***************************************************************
+                * Параметры фильтров подобраны так, что все фильтры готовятся за 
+                * одинаковое число итераций, что критически важно для корректности 
+                * отработки цикла!
+                *************************************************************** */
+
+                while(!filter_acc.is_data_filtered() || !filter_gyro.is_data_filtered() || !filter_temp.is_data_filtered()){
+                    // Считаем значения и добавим полученные значения в фильтры
+                    sensor_L3GD20.ReadGyro();
                     filter_gyro.append_value(sensor_L3GD20.gyro_data);
+                    
+                    sensor_LSM303DLHC.ReadAcc();
+                    filter_acc.append_value(sensor_LSM303DLHC.acc_data);
+
+                    // Данные температуры будем считывать в 4 раза реже
+                    if (sensor_reading_counter++ % 4 == 0) {
+                        sensor_LSM303DLHC.ReadTemp();
+                        filter_temp.append_value(sensor_LSM303DLHC.temperature);
+                    }
                 }
 
-                // Обновим значения acc_value и gyro_value
+                // Обновим данные с датчиков
                 acc_value = filter_acc.get_filtered_data();
                 gyro_value = filter_gyro.get_filtered_data();
+                temp_value = filter_temp.get_filtered_data();
 
                 // Обновим данные в посылке и отправим её по com-порту
-                // TODO: в дальнейшем, тут надо обновить и другие поля посылки
                 telega_package.UpdateData();
+                telega_package.UpdateTime(tick_counter++);  // Фиктивное изменение метки времени
+                telega_package.UpdateControlSum();
                 com_port.SendPackage(telega_package);
 
                 // Сбросим фильтры
                 filter_acc.reset();
                 filter_gyro.reset();
+                filter_temp.reset();
             }
 
             // В конце отправим сообщение об окончании выставки
-            com_port.SendMessage(Message(EndOfInitialSetting, MaxCommand_Length));
+            send_end_of_initial_setting_msg();
 
             stage = ProgramStages::FooStage;
             break;
 
         case ProgramStages::Measuring:
-            if (previous_stage != Measuring){
-                previous_stage = Measuring;
+            if (previous_stage != ProgramStages::Measuring){
+                previous_stage = ProgramStages::Measuring;
                 tick_counter = 0;
+                sensor_reading_counter = 0;
                 leds.LedsOff();
                 // Запустим таймер сбора данных с частотой 4 Гц
                 timer3.ResetCounter();
@@ -258,28 +285,36 @@ int main()
 
                 leds.LedOn(LED5);
 
-                while(!filter_acc.is_data_filtered() || !filter_gyro.is_data_filtered()){
-                    // Считаем значения
-                    sensor_L3GD20.ReadData();
-                    sensor_LSM303DLHC.ReadData();
-    
-                    // Добавим полученные значения в фильтры
-                    filter_acc.append_value(sensor_LSM303DLHC.acc_data);
+                while(!filter_acc.is_data_filtered() || !filter_gyro.is_data_filtered() || !filter_temp.is_data_filtered()){
+                    // Считаем значения и добавим полученные значения в фильтры
+                    sensor_L3GD20.ReadGyro();
                     filter_gyro.append_value(sensor_L3GD20.gyro_data);
+
+                    sensor_LSM303DLHC.ReadAcc();
+                    filter_acc.append_value(sensor_LSM303DLHC.acc_data);
+    
+                    // Данные температуры будем считывать в 4 раза реже
+                    if (sensor_reading_counter++ % 4 == 0) {
+                        sensor_LSM303DLHC.ReadTemp();
+                        filter_temp.append_value(sensor_LSM303DLHC.temperature);
+                    }
                 }
 
-                // Обновим значения acc_value и gyro_value
+                // Обновим данные с датчиков
                 acc_value = filter_acc.get_filtered_data();
                 gyro_value = filter_gyro.get_filtered_data();
+                temp_value = filter_temp.get_filtered_data();
 
                 // Обновим данные в посылке и отправим её по com-порту
-                // TODO: в дальнейшем, тут надо обновить и другие поля посылки
                 telega_package.UpdateData();
+                telega_package.UpdateTime(tick_counter++);
+                telega_package.UpdateControlSum();
                 com_port.SendPackage(telega_package);
 
                 // Сбросим фильтры
                 filter_acc.reset();
                 filter_gyro.reset();
+                filter_temp.reset();
 
                 leds.LedOff(LED5);
                 timer_tick_flag = false;
@@ -292,6 +327,7 @@ int main()
 
 // -------------------------------------------------------------------------------
 // Инициализация оборудования
+// -------------------------------------------------------------------------------
 void InitAll(){
     leds.Init();
     leds.LedsOn();
@@ -311,65 +347,12 @@ void InitAll(){
 }
 
 // -------------------------------------------------------------------------------
-
-void LedOn(Led_TypeDef Led){   leds.LedOn(Led);   }
-
-void LedOff(Led_TypeDef Led){  leds.LedOff(Led);  }
-
-
+// Функции для отработки поступивших команд
 // -------------------------------------------------------------------------------
-// Собственный callback для отработки поступления нового сообщения по com порту
-// TODO: перенести эту логику в класс ComPort
+
 void UserEP3_OUT_Callback(uint8_t *buffer){
-    uint8_t bt;                 // Текущий обрабатываемый байт сообщения
-    uint16_t con_sum = 0;       // Посчитанная контрольная сумма
-    uint8_t len;                // Длина данных в сообщении
-    uint8_t dataIndex = 0;      // Текущий индекс информации в сообщении 
-
-    for(uint8_t i = 0; i < 64; i++){        // hw_config.c --> len(buffer) = 64
-        bt = buffer[i];
-        switch (decode_stage)
-        {
-        case Want7E:
-            if (bt == 0x7e){
-                decode_stage = WantE7;
-                con_sum += bt;
-            } else    decode_stage = Want7E;
-            break;
-        case WantE7:
-            if (bt == 0xe7){
-                decode_stage = WantFormat;
-                con_sum += bt;
-            } else    decode_stage = Want7E;
-            break;
-        case WantFormat:
-            if (bt == 0xff){
-                decode_stage = WantData;
-                con_sum += bt;
-                len = 2;        // Количество байт данных в сообщении с форматом 0xff
-            } else    decode_stage = Want7E;
-            break;
-        case WantData:
-            if (dataIndex < len){
-                con_sum += bt;
-                dataIndex++;
-            }
-
-            if (dataIndex == len){
-                decode_stage = WantConSum; 
-            }
-            break;
-        
-        case WantConSum:
-            decode_stage = Want7E;
-            if (uint8_t(con_sum) == bt){
-                COM_port.sending_package(ConfirmMessage, MaxCommand_Length);
-                COM_port.new_message(buffer);
-                return;
-            }
-            break;
-        }
-    }
+    STM_CppLib::Message message(buffer);
+    com_port.EP3_OUT_Callback(message);
 }
 
 // Функции для обработки поступивших команд
@@ -378,25 +361,51 @@ void restart(){
 }
 
 void start_InitialSetting(){
-    stage = InitialSetting;
+    stage = ProgramStages::InitialSetting;
 }
 
 void start_Measuring(){
-    stage = Measuring;
+    stage = ProgramStages::Measuring;
 }
 
 void stop_Measuring(){
-    stage = FooStage;
+    stage = ProgramStages::FooStage;
 }
 
 void stop_CollectingData(){
-    stage = FooStage;
+    stage = ProgramStages::FooStage;
 }
 
-void error_msg(){
-    com_port.sending_package(ErrorMessage, MaxCommand_Length);
-    Delay(1000);
+// -------------------------------------------------------------------------------
+// Отправка предопределённых сообщений
+// -------------------------------------------------------------------------------
+
+void send_confirm_msg(){
+    constexpr uint8_t ConfirmMessage[MessageLen] = {0x7e, 0xe7, 0xff, 0xaa, 0xaa, 0xb8, 0};
+    STM_CppLib::Message message(ConfirmMessage, MessageLen);
+    com_port.SendMessage(message);   // В таком случае передаём lvalue ссылку
 }
+
+void send_hello_msg(){
+    const char* text = "STM_Telega by Romanovskiy Roma\n";
+    STM_CppLib::Message message(reinterpret_cast<const uint8_t*>(text), strlen(text));
+    com_port.SendMessage(message);
+}
+
+void send_error_msg(){
+    constexpr uint8_t ErrorMessage[MessageLen] = {0x7e, 0xe7, 0xff, 0xff, 0xff, 0x62, 0};
+    STM_CppLib::Message message(ErrorMessage, MessageLen);
+    com_port.SendMessage(message);
+}
+
+void send_end_of_initial_setting_msg(){
+    constexpr uint8_t EndOfInitialSettingMessage[MessageLen] = {0x7e, 0xe7, 0xff, 0xba, 0xab, 0xc9, 0};
+    STM_CppLib::Message message(EndOfInitialSettingMessage, MessageLen);
+    com_port.SendMessage(message);
+}
+
+// -------------------------------------------------------------------------------
+// Системные функции
 // -------------------------------------------------------------------------------
 
 void Error_Handler(void)

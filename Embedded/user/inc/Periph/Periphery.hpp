@@ -1,17 +1,18 @@
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __I_COMMUNICATION_INTERFACE_HPP
-#define __I_COMMUNICATION_INTERFACE_HPP
+#ifndef __PERIPHERY_HPP
+#define __PERIPHERY_HPP
 
 /* Includes ------------------------------------------------------------------*/
-#include "BasePackage.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 
 // -----------------------------------------------------------------------------
 // Class comment
-class I_CommunicationInterface{
-    virtual void Init() = 0;
-    virtual void SendPackage(BasePackage& package) = 0;
+class BasePeriph{
+protected:
+
+public:
+
 };
 
-#endif /*   __I_COMMUNICATION_INTERFACE_HPP   */
+#endif /*   __PERIPHERY_HPP   */

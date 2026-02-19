@@ -10,8 +10,8 @@
 #include "SensorScaler.hpp"
 
 /* Defines -------------------------------------------------------------------*/
-#define USE_MAGNETIC_SENSOR
-// #define USE_TEMPERATURE_SENSOR
+// #define USE_MAGNETIC_SENSOR
+#define USE_TEMPERATURE_SENSOR
 
 #define AccCoeff        0.01        // Коэффициент перевода ускорения               [mg] --> [g] 
 #define MagCoeff        100000      // Коэффициент перевода магнитной индукции      [G] --> [nT]
@@ -50,6 +50,7 @@ namespace STM_CppLib{
     #endif /*   USE_MAGNETIC_SENSOR   */
 
     #ifdef USE_TEMPERATURE_SENSOR
+    public:
         float temperature;
     #endif /*    USE_TEMPERATURE_SENSOR   */
 
@@ -63,12 +64,13 @@ namespace STM_CppLib{
             AccInit();
             MagInit();
 
-            // Вычислим масштабирующий коэффициент
+            // Вычислим масштабирующий коэффициент для ускорения
             SensorScaller<LSM303DLHC> acc_scaller{this, &acc_data, TrueMoscowAcc};
             acc_scaller.Init();
             acc_scale_rate = acc_scaller.scale_rate;
         }
     
+    private:
         // Инициализация акселерометра
         void AccInit(){
             // ----------------------------------------------------------------
@@ -157,7 +159,8 @@ namespace STM_CppLib{
             InitStruct.Temperature_Sensor = LSM303DLHC_TEMPSENSOR_ENABLE;   /*!< Temp sensor enable */
 
             LSM303DLHC_MagInit(&InitStruct);
-
+    
+        #ifdef USE_MAGNETIC_SENSOR
             // ----------------------------------------------------------------
             // Установим чувствительность магнитометра
             switch (InitStruct.MagFull_Scale)
@@ -191,7 +194,7 @@ namespace STM_CppLib{
                 Mag_Sensitivity_Z = LSM303DLHC_M_SENSITIVITY_Z_8_1Ga;
                 break;
             }            
-
+        #endif /*   USE_MAGNETIC_SENSOR   */
         }
 
         // ------------------------------
