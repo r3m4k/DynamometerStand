@@ -8,7 +8,7 @@
 SYSTEM := windows	
 
 # Названеи проекта
-PROGRAM_NAME := STM_PROJECT
+PROGRAM_NAME := DynamometerStand
 
 # Директория с исходным кодом относительно Makefile.mk
 SOURCE_DIR = D:/Job/18shka/DynamometerStand/Embedded
@@ -56,7 +56,7 @@ GCC_FLAGS = -std=gnu11 ${COMPILER_FLAGS} -c
 
 # флаги для g++
 # GPP_FLAGS = -std=gnu++11 ${COMPILER_FLAGS} -c -fabi-version=0 -fno-exceptions -fno-rtti -fno-use-cxa-atexit -fno-threadsafe-statics
-GPP_FLAGS = -std=gnu++2a ${COMPILER_FLAGS} -c -fno-exceptions -fno-rtti -fno-use-cxa-atexit -fno-threadsafe-statics
+GPP_FLAGS = -std=c++20 ${COMPILER_FLAGS} -c -fno-exceptions -fno-rtti -fno-use-cxa-atexit -fno-threadsafe-statics
 
 # библиотеки компоновщика - должны быть последними в списке команды компоновщика
 # C:\SysGCC\arm-eabi\arm-none-eabi\lib\libm.a
@@ -68,9 +68,8 @@ INCLUDES = \
 -I"${SOURCE_DIR}/user" \
 -I"${SOURCE_DIR}/user/inc" \
 -I"${SOURCE_DIR}/user/inc/aaa_Project_Files" \
--I"${SOURCE_DIR}/user/inc/aaa_Project_Files/DataFilters" \
 -I"${SOURCE_DIR}/user/inc/Common" \
--I"${SOURCE_DIR}/user/inc/CommunicationInterfaces" \
+-I"${SOURCE_DIR}/user/inc/Communication" \
 -I"${SOURCE_DIR}/user/inc/DataContainers" \
 -I"${SOURCE_DIR}/user/inc/Filters" \
 -I"${SOURCE_DIR}/user/inc/Packages" \

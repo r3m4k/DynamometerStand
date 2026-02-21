@@ -1,4 +1,4 @@
-/**
+/** ****************************************************************************
  * @file    GpioPin.hpp
  * @author  Романовский Роман
  * @brief   Шаблонные классы для работы с выводами GPIO и внешними прерываниями (EXTI)
@@ -6,7 +6,7 @@
  *          управления выводом (инициализация, установка/сброс, чтение) и расширенный
  *          класс GPIO_Pin_EXTI с поддержкой внешних прерываний через EXTI.
  *          Также содержит концепт GpioPinConcept для проверки наличия необходимых методов.
- */
+ **************************************************************************** */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef GPIO_PIN_HPP
@@ -33,7 +33,7 @@ namespace STM_CppLib{
     namespace STM_GPIO{
 
         /**
-         * @brief   Концепт, описывающий требования к типу пина GPIO для использования в классе HX711.
+         * @brief   Концепт, описывающий требования к типу пина GPIO для использования в шаблонах.
          * @tparam  T   Тип, который проверяется на соответствие концепту.
          * @details Концепт требует наличия методов SetPin(), ResetPin(), ReadPin() и InitPin() с сигнатурами,
          *          аналогичными методам класса GPIO_Pin из библиотеки STM_CppLib.
@@ -164,14 +164,15 @@ namespace STM_CppLib{
              *          - InitInterrupt() из BaseIRQDevice для настройки NVIC и регистрации обработчика.
              */
             void InitPinExti(
-                GPIOMode_TypeDef GPIO_Mode = GPIO_Mode_IN,
-                GPIOPuPd_TypeDef GPIO_PuPd = GPIO_PuPd_DOWN,
-                GPIO_InitTypeDef* GPIO_InitStructure_ptr = nullptr,
+                GPIOMode_TypeDef GPIO_Mode = GPIO_Mode_OUT,
+                GPIOPuPd_TypeDef GPIO_PuPd = GPIO_PuPd_NOPULL,
+                GPIOSpeed_TypeDef GPIO_Speed = GPIO_Speed_50MHz,
+                GPIOOType_TypeDef GPIO_OType = GPIO_OType_PP,
                 EXTI_InitTypeDef* EXTI_InitStructure_ptr = nullptr,
                 NVIC_InitTypeDef* NVIC_InitStructure_ptr = nullptr
             ){
                 
-                this->InitPin(GPIO_Mode, GPIO_PuPd, GPIO_InitStructure_ptr);
+                this->InitPin(GPIO_Mode, GPIO_PuPd, GPIO_Speed, GPIO_OType);
                 this->InitExti(EXTI_InitStructure_ptr);
                 this->InitInterrupt(NVIC_InitStructure_ptr);
             }

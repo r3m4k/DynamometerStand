@@ -1,10 +1,10 @@
-/**
+/** ****************************************************************************
  * @file    ComPort.hpp
  * @brief   Класс для работы с виртуальным COM-портом (VCP) через USB.
  * @details Содержит реализацию ComPort, которая использует декодер для
  *          обработки входящих сообщений и предоставляет методы для отправки
  *          пакетов и сообщений.
- */
+ **************************************************************************** */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef COM_PORT_HPP
@@ -24,12 +24,15 @@
 /* Defines -------------------------------------------------------------------*/
 
 /* Usings --------------------------------------------------------------------*/
+
+#if ENABLE_COMMAND_PROCESSING
 /**
  * @brief   Тип декодера, используемый для обработки входящих сообщений.
  * @details По умолчанию используется DecoderTelega. Может быть заменён
  *          на другой тип, удовлетворяющий концепту HasVoidMessageProcessing.
  */
 using Decoder = DecoderTelega;
+#endif  /* ENABLE_COMMAND_PROCESSING */
 
 /* Global variables ----------------------------------------------------------*/
 
@@ -56,14 +59,19 @@ namespace STM_CppLib{
      *          а также обработку входящих данных через декодер.
      */
     class ComPort{
-
+        
+    #if ENABLE_COMMAND_PROCESSING
         static_assert(HasVoidMessageProcessing<Decoder>,
             "\n=== DECODER INTERFACE ERROR ===\n"
             "Decoder type must provide: void message_processing(STM_CppLib::Message&)\n"
             "===============================\n");
+    #endif  /* ENABLE_COMMAND_PROCESSING */
 
     private:
+
+    #if ENABLE_COMMAND_PROCESSING
         Decoder decoder;    ///< Декодер для обработки входящих сообщений
+    #endif  /* ENABLE_COMMAND_PROCESSING */
 
     public:
         /**
@@ -89,7 +97,7 @@ namespace STM_CppLib{
          * @brief   Отправка пакета данных через COM-порт.
          * @param   package   Ссылка на базовый пакет (BasePackage), содержащий данные и длину.
          */
-        void SendPackage(STM_Packages::BasePackage& package){
+        void SendPackage(Packages::BasePackage& package){
             CDC_Send_DATA(package.data_ptr, package.len);
         }
 
@@ -100,7 +108,8 @@ namespace STM_CppLib{
         void SendMessage(Message& message){
             CDC_Send_DATA(message.bytes_msg, message.msg_size);
         }
-
+        
+    #if ENABLE_COMMAND_PROCESSING
         /**
          * @brief   Обработка входящего сообщения (вызывается из callback USB).
          * @param   message   Ссылка на принятое сообщение.
@@ -109,6 +118,7 @@ namespace STM_CppLib{
         void EP3_OUT_Callback(STM_CppLib::Message& message){
             decoder.message_processing(message);
         }
+    #endif  /* ENABLE_COMMAND_PROCESSING */
     };
 
     } // namespace ComPort

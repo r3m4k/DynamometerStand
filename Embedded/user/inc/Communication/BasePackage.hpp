@@ -10,8 +10,7 @@
 /* Global variables ----------------------------------------------------------*/
 
 // -----------------------------------------------------------------------------
-namespace STM_CppLib{
-    namespace STM_Packages{
+namespace Packages{
 
     // -------------------------------------------------------------------------
     /* Класс для описания базового пакета информации
@@ -36,6 +35,5 @@ namespace STM_CppLib{
 
     };
 
-    } // namespace STM_Packages
-} // namespace STM_CppLib
+} // namespace Packages
 #endif /*   __BASE_PACKAGE_HPP   */

@@ -1,7 +1,3 @@
-/* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef COMMAND_PROCESSING_HPP
-#define COMMAND_PROCESSING_HPP
-
 /** ****************************************************************************
  * @file CommandProcessing.hpp
  * @brief Модуль обработки команд для встроенной системы.
@@ -14,6 +10,10 @@
  * @date Январь 2026
  * @author Романовский Роман
  **************************************************************************** */
+
+/* Define to prevent recursive inclusion -------------------------------------*/
+#ifndef COMMAND_PROCESSING_HPP
+#define COMMAND_PROCESSING_HPP
 
 /* Includes ------------------------------------------------------------------*/
 #include <cstring>
@@ -140,7 +140,7 @@ public:
  */
 
 //! Количество поддерживаемых команд
-inline constexpr uint8_t num_of_supported_commands = 5;
+inline constexpr uint8_t num_of_supported_commands = 1;
 
 /*!
  * @var Restart
@@ -152,50 +152,6 @@ inline constexpr uint8_t num_of_supported_commands = 5;
 inline constexpr uint8_t Restart_Code[CommandLength] = 
         {0x7e, 0xe7, 0xff, 0xff, 0x00, 0x63, 0x00, 0x00};
 inline Command Restart(Restart_Code, restart);
-
-/*!
- * @var Start_InitialSetting
- * @brief Команда запуска режима начальной выставки датчиков.
- * 
- * Код команды: {0x7e, 0xe7, 0xff, 0xab, 0xba, 0xc9, 0x00, 0x00}
- * Обработчик: start_InitialSetting()
- */
-inline constexpr uint8_t Start_InitialSetting_Code[CommandLength] = 
-        {0x7e, 0xe7, 0xff, 0xab, 0xba, 0xc9, 0x00, 0x00};
-inline Command Start_InitialSetting(Start_InitialSetting_Code, start_InitialSetting);
-
-/*!
- * @var Start_Measuring
- * @brief Команда запуска режима измерения (отправка данных с частотой 4 Гц).
- * 
- * Код команды: {0x7e, 0xe7, 0xff, 0xbc, 0xcb, 0xeb, 0x00, 0x00}
- * Обработчик: start_Measuring()
- */
-inline constexpr uint8_t Start_Measuring_Code[CommandLength] = 
-        {0x7e, 0xe7, 0xff, 0xbc, 0xcb, 0xeb, 0x00, 0x00};
-inline Command Start_Measuring(Start_Measuring_Code, start_Measuring);
-
-/*!
- * @var Stop_Measuring
- * @brief Команда остановки режима измерения.
- * 
- * Код команды: {0x7e, 0xe7, 0xff, 0xcd, 0xdc, 0x0d, 0x00, 0x00}
- * Обработчик: stop_Measuring()
- */
-inline constexpr uint8_t Stop_Measuring_Code[CommandLength] = 
-        {0x7e, 0xe7, 0xff, 0xcd, 0xdc, 0x0d, 0x00, 0x00};
-inline Command Stop_Measuring(Stop_Measuring_Code, stop_Measuring);
-
-/*!
- * @var Stop_CollectingData
- * @brief Команда остановки сбора данных.
- * 
- * Код команды: {0x7e, 0xe7, 0xff, 0xde, 0xed, 0x2f, 0x00, 0x00}
- * Обработчик: stop_CollectingData()
- */
-inline constexpr uint8_t Stop_CollectingData_Code[CommandLength] = 
-        {0x7e, 0xe7, 0xff, 0xde, 0xed, 0x2f, 0x00, 0x00};
-inline Command Stop_CollectingData(Stop_CollectingData_Code, stop_CollectingData);
 
 /** @} */ // конец группы SupportedCommands
 
@@ -213,10 +169,6 @@ private:
     // Массив поддерживаемых команд
     inline static Command supported_commands[num_of_supported_commands] = {
         Restart,
-        Start_InitialSetting,
-        Start_Measuring,
-        Stop_Measuring,
-        Stop_CollectingData
     };
 
 public:

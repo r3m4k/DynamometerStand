@@ -1,11 +1,11 @@
-/**
+/** ****************************************************************************
  * @file    HX711.hpp
  * @author  Романовский Роман
  * @brief   Драйвер для 24-битного АЦП HX711
  * @details Содержит шаблонный класс HX711 для управления датчиками на основе
  *          HX711 через два GPIO-пина (данные и тактовый сигнал). Поддерживает
  *          выбор канала и коэффициента усиления с помощью перечисления HX711Gain.
- */
+ **************************************************************************** */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef HX711_HPP
@@ -63,9 +63,10 @@ namespace HX711
      * @note    Для работы требуются функции micro_timer_start/stop() и microDelay(),
      *          определённые в main.h.
      */
-    template <STM_CppLib::STM_GPIO::GpioPinConcept PinDT,
-              STM_CppLib::STM_GPIO::GpioPinConcept PinSCK>
+    template <typename PinDT, typename PinSCK>
     class HX711{
+        static_assert(STM_CppLib::STM_GPIO::GpioPinConcept<PinDT>, "PinDT must satisfy GpioPinConcept");
+        static_assert(STM_CppLib::STM_GPIO::GpioPinConcept<PinSCK>, "PinSCK must satisfy GpioPinConcept");
     private:
         PinDT pin_dt;           ///< Пин данных (DOUT) HX711
         PinSCK pin_sck;         ///< Тактовый пин (SCK) HX711
@@ -132,7 +133,7 @@ namespace HX711
 
                 // Задержка для нарастания/спада фронта
                 // T2: установка SCK -> данные готовы
-                for(volatile uint8_t d = 0; d < HX711FrontRisingTicks; d++){
+                for(uint8_t d = 0; d < HX711FrontRisingTicks; d++){
                     __NOP();    
                 }
 

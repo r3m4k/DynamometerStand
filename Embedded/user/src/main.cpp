@@ -40,40 +40,43 @@ __IO uint8_t PrevXferComplete = 1;
 __IO uint8_t buttonState;
 // ===============================================================================
 
+/* Defines -------------------------------------------------------------------*/
+#define ENABLE_INTERFACE_COMMANDS   0   // Дефайн для включения обработки поступивших
+                                        // команд (0 - выкл / 1 - вкл)
+#define IST_VECTORS_NUM     98          // Количество векторов прерываний
+#define MessageLen          8           // Длина отправляемых информационных сообщений
+
+/* Typedefs ------------------------------------------------------------------*/
+typedef void (* const pHandler)(void);
 
 /* Global variables ---------------------------------------------------------*/
-typedef void
-(* const pHandler)(void);
-
 extern pHandler __isr_vectors[];
 
-// ----------------------------------------------------------------------------
-#define IST_VECTORS_NUM     98      // Количество векторов прерываний
+/* ****************************************************************************
+ * Пользовательские переменные
+ *************************************************************************** */
 
 // Собственная таблица прерываний
 __attribute__((aligned(128)))    // Cortex-M4 требует выравнивание по 128 байт!
 _user_pHandler _user_vector_table[IST_VECTORS_NUM] = {0};
 
-// ----------------------------------------------------------------------------
-
-volatile uint32_t microTimingDelay = 0;
-volatile uint32_t tick_counter = 0;
+// Необходимые счётчики
+uint32_t microTimingDelay = 0;
+uint32_t tick_counter = 0;
 
 // Стадии программы
 enum class ProgramStages{InfiniteSending};
 ProgramStages stage = ProgramStages::InfiniteSending;
 
-// ----------------------------------------------------------------------------
-
-// Периферия ------------------------------------------------------------------
-
 // Светодиоды на плате
 STM_CppLib::Leds leds;
 
+#if ENABLE_COMMAND_PROCESSING
 // Обработчик поступивших команд
 STM_CppLib::Commands::CommandManager command_manager;
+#endif  /* ENABLE_COMMAND_PROCESSING */
 
-// Интерфейсы связи
+// Интерфейс связи
 STM_CppLib::ComPort::ComPort com_port;
 
 // Используемые таймеры -------------------------------------------------------
@@ -139,7 +142,7 @@ using HX711_1_t = HX711::HX711<PinDT1_t, PinSCK1_t>;
 // HX711_array -----------------------------------------------------------
 // Вариант, который хранит типы HX711
 using HX711Variant = std::variant<
-                                  HX711_1_t, 
+                                  HX711_1_t
                                 //   HX711_2_t, 
                                 //   HX711_3_t
                                 >;
@@ -210,10 +213,12 @@ int main()
         * очереди поступивших команд и её отработки.
         *********************************************************************** */
        
-        // if (!command_manager.command_queue.is_empty()){
-        //     auto command = command_manager.command_queue.get();
-        //     command.execute();
-        // }
+    #if ENABLE_COMMAND_PROCESSING
+        if (!command_manager.command_queue.is_empty()){
+            auto command = command_manager.command_queue.get();
+            command.execute();
+        }
+    #endif
 
         switch (stage)
         {
@@ -287,8 +292,10 @@ void send_all_hx711_packages(){
 // -------------------------------------------------------------------------------
 
 void UserEP3_OUT_Callback(uint8_t *buffer){
+#if ENABLE_COMMAND_PROCESSING
     STM_CppLib::Message message(buffer);
     com_port.EP3_OUT_Callback(message);
+#endif  /* ENABLE_COMMAND_PROCESSING */
 }
 
 // Функции для обработки поступивших команд
@@ -372,7 +379,6 @@ void Delay(__IO uint32_t nTime)
     TimingDelay = nTime;
 
     while (TimingDelay != 0){}
-    // for (int i = 0; i < 1000000; i++){}
 }
 
 // Function to Decrement the TimingDelay variable.
