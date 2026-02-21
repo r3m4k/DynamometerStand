@@ -1,6 +1,6 @@
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __GPIO_PORT_HPP
-#define __GPIO_PORT_HPP
+#ifndef GPIO_PORT_HPP
+#define GPIO_PORT_HPP
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f30x.h"
@@ -51,4 +51,4 @@ namespace STM_CppLib{
 
     } // namespace STM_GPIO
 } // namespace STM_CppLib
-#endif /*   __GPIO_PORT_HPP   */
+#endif /*   GPIO_PORT_HPP   */

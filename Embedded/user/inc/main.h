@@ -91,6 +91,8 @@
 // Инициализация оборудования
 void InitAll();
 
+void read_all_hx711(void);
+
 // Функции для отработки поступивших команд
 void UserEP3_OUT_Callback(uint8_t *buffer);
 void restart(void);
@@ -104,6 +106,13 @@ void send_confirm_msg(void);
 void send_hello_msg(void);
 void send_error_msg(void);
 void send_end_of_initial_setting_msg(void);
+
+// Функции для работы с микросекундным таймером 
+void micro_timer_init(void);
+void micro_timer_start(void);
+void micro_timer_stop(void);
+void microDelay(uint32_t nTime);
+void microTimingDelay_Decrement(void);
 
 // Системные функции
 void Error_Handler(void);
