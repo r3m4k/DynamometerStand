@@ -2,6 +2,9 @@
 #include "main.h"
 
 /* Includes HPP files --------------------------------------------------------*/
+#include <array>
+#include <variant>
+
 #include "Consts.hpp"
 #include "GPTimers.hpp"
 #include "Leds.hpp"
@@ -54,18 +57,18 @@ _user_pHandler _user_vector_table[IST_VECTORS_NUM] = {0};
 // ----------------------------------------------------------------------------
 
 volatile uint32_t microTimingDelay = 0;
-
+volatile uint32_t tick_counter = 0;
 
 // Стадии программы
 enum class ProgramStages{InfiniteSending};
-
-STM_CppLib::STM_GPIO::GPIO_Pin_EXTI
-    <STM_CppLib::STM_GPIO::GPIO_Port::PortC, GPIO_PinSource1, update_package_data> Pin_PC1;
+ProgramStages stage = ProgramStages::InfiniteSending;
 
 // ----------------------------------------------------------------------------
 
-// Периферия
-STM_CppLib::Leds leds;                   // Светодиоды на плате
+// Периферия ------------------------------------------------------------------
+
+// Светодиоды на плате
+STM_CppLib::Leds leds;
 
 // Обработчик поступивших команд
 STM_CppLib::Commands::CommandManager command_manager;
@@ -73,27 +76,34 @@ STM_CppLib::Commands::CommandManager command_manager;
 // Интерфейсы связи
 STM_CppLib::ComPort::ComPort com_port;
 
-// Используемые таймеры
+// Используемые таймеры -------------------------------------------------------
+
+// Таймер для реализации микросекундных задержек
 STM_CppLib::STM_Timer::Timer2<[](){
     /* Объявление лямбды, которая будет вызываться в прерывании */
     microTimingDelay_Decrement();
-}>  timer2;     // Таймер для реализации микросекундных задержек
+}>  timer2;
 
+// Таймер для чтения АЦП с частотой 10 Гц
 STM_CppLib::STM_Timer::Timer3<[](){
     /* Объявление лямбды, которая будет вызываться в прерывании */
     leds.ChangeLedStatus(LED9);
-    read_all_hx711();    
-}>  timer3;     // Таймер для чтения АЦП с частотой 10 Гц
 
+    tick_counter++;
+    read_all_hx711();           
+    send_all_hx711_packages();
+}>  timer3;
+
+// Таймер для мерцания светодиодами LED6, LED7
 STM_CppLib::STM_Timer::Timer4<[](){
     /* Объявление лямбды, которая будет вызываться в прерывании */
     leds.ChangeLedStatus(LED6);
     leds.ChangeLedStatus(LED7);
-}>  timer4;     // Таймер для мерцания светодиодами LED6, LED7
+}>  timer4;
 
 
 /* ***********************************************************************
-* Укажем конфигурацию пинов для использования АЦП HX711:
+* Конфигурация пинов для использования нескольких АЦП HX711:
 *       HX711_1     HX711_2     HX711_3
 * DT:   PC2         PA0         PA4
 * SCK:  PC3         PA3         PA5
@@ -106,19 +116,47 @@ using PinDT1_t = STM_CppLib::STM_GPIO::GPIO_Pin
 using PinSCK1_t = STM_CppLib::STM_GPIO::GPIO_Pin
     <STM_CppLib::STM_GPIO::GPIO_Port::PortC, GPIO_PinSource3>;
 
-// HX711_2 ---------------------------------------------------------------
-using PinDT2_t = STM_CppLib::STM_GPIO::GPIO_Pin
-    <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource0>;
+using HX711_1_t = HX711::HX711<PinDT1_t, PinSCK1_t>;
 
-using PinSCK2_t = STM_CppLib::STM_GPIO::GPIO_Pin
-    <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource3>;
+// // HX711_2 ---------------------------------------------------------------
+// using PinDT2_t = STM_CppLib::STM_GPIO::GPIO_Pin
+//     <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource0>;
 
-// HX711_3 ---------------------------------------------------------------
-using PinDT3_t = STM_CppLib::STM_GPIO::GPIO_Pin
-    <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource4>;
+// using PinSCK2_t = STM_CppLib::STM_GPIO::GPIO_Pin
+//     <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource3>;
 
-using PinSCK3_t = STM_CppLib::STM_GPIO::GPIO_Pin
-    <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource5>;
+// using HX711_2_t = HX711::HX711<PinDT2_t, PinSCK2_t>;
+
+// // HX711_3 ---------------------------------------------------------------
+// using PinDT3_t = STM_CppLib::STM_GPIO::GPIO_Pin
+//     <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource4>;
+
+// using PinSCK3_t = STM_CppLib::STM_GPIO::GPIO_Pin
+//     <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource5>;
+
+// using HX711_3_t = HX711::HX711<PinDT3_t, PinSCK3_t>;
+
+// HX711_array -----------------------------------------------------------
+// Вариант, который хранит типы HX711
+using HX711Variant = std::variant<
+                                  HX711_1_t, 
+                                //   HX711_2_t, 
+                                //   HX711_3_t
+                                >;
+constexpr std::size_t HX711num = std::variant_size<HX711Variant>::value;
+
+std::array<HX711Variant, HX711num> hx711_array = {
+    HX711_1_t(HX711::HX711Gain::Gain128_A),
+    // HX711_2_t(HX711::HX711Gain::Gain128_A),
+    // HX711_3_t(HX711::HX711Gain::Gain128_A)
+};
+
+// HX711Packages_array ---------------------------------------------------
+std::array<Packages::HX711Package, HX711num> hx711_package_array = {
+    Packages::HX711Package(&(std::get_if<0>(&hx711_array[0])->adc_value), 1),
+    // Packages::HX711Package(&(std::get_if<1>(&hx711_array[1])->adc_value), 2),
+    // Packages::HX711Package(&(std::get_if<2>(&hx711_array[2])->adc_value), 3)
+};
 
 // -------------------------------------------------------------------------------
 
@@ -159,9 +197,9 @@ int main()
     // Поморгаем светодиодами после успешной инициализации
     leds.ToggleLeds();
 
-    // ---------------------------------------------------------------------------
-
-   
+    // Запустим таймеры
+    timer3.Start();
+    timer4.Start();
 
     // ---------------------------------------------------------------------------
     // Основной цикл программы
@@ -192,13 +230,16 @@ int main()
 // Инициализация оборудования
 // -------------------------------------------------------------------------------
 void InitAll(){
-    micro_timer_init();
-
+    // Настройка периферии -------------------------------------------------------
     leds.Init();
     leds.LedsOn();
     
     com_port.Init();
+    init_all_hx711();
 
+    // Настройка таймеров --------------------------------------------------------
+    micro_timer_init();
+    
     // Настройка основного таймера с периодом счёта в 100 мс (10 Гц)
     uint32_t tim3_period = 1000 - 1;
     timer3.Init(tim3_period);
@@ -209,11 +250,37 @@ void InitAll(){
 }
 
 // -------------------------------------------------------------------------------
-// Функции для чтения всех подключённых АЦП
+// Функции для работы со всеми подключёнными АЦП HX711
 // -------------------------------------------------------------------------------
-void read_all_hx711(){
-
+void init_all_hx711(){
+    for(auto& hx711_variant : hx711_array){
+        std::visit([](auto& hx711){
+                hx711.init();
+            }, hx711_variant);
+    }
 }
+
+void read_all_hx711(){
+    for(auto& hx711_variant : hx711_array){
+        std::visit([](auto& hx711){
+                hx711.read_adc_val();
+            }, hx711_variant);
+    }
+}
+
+void send_all_hx711_packages(){
+    for (auto& package : hx711_package_array){
+        // Обновим данные в пакете
+        package.UpdateTime(tick_counter);
+        package.UpdateData();
+        package.UpdateControlSum();
+
+        // Отправим пакет по com порту
+        com_port.SendPackage(package);
+    }
+}
+
+
 
 // -------------------------------------------------------------------------------
 // Функции для отработки поступивших команд

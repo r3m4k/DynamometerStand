@@ -38,8 +38,7 @@
 
 // -----------------------------------------------------------------------------
 
-namespace STM_CppLib{
-    namespace STM_Packages{
+namespace Packages{
 
     /**
      * @brief   Класс пакета данных с АЦП HX711.
@@ -138,7 +137,6 @@ namespace STM_CppLib{
         }        
     };
 
-    } // namespace STM_Packages
-} // namespace STM_CppLib
+} // namespace Packages
 
 #endif /*   HX711_PACKAGE_HPP   */

@@ -91,21 +91,19 @@
 // Инициализация оборудования
 void InitAll();
 
-void read_all_hx711(void);
+// Функции для работы со всеми подключёнными АЦП HX711
+void init_all_hx711();
+void read_all_hx711();
+void send_all_hx711_packages();
 
 // Функции для отработки поступивших команд
 void UserEP3_OUT_Callback(uint8_t *buffer);
 void restart(void);
-void start_InitialSetting(void);
-void start_Measuring(void);
-void stop_Measuring(void);
-void stop_CollectingData(void);
 
 // Отправка предопределённых сообщений
 void send_confirm_msg(void);
 void send_hello_msg(void);
 void send_error_msg(void);
-void send_end_of_initial_setting_msg(void);
 
 // Функции для работы с микросекундным таймером 
 void micro_timer_init(void);
