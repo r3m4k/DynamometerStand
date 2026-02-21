@@ -107,9 +107,9 @@ STM_CppLib::STM_Timer::Timer4<[](){
 
 /* ***********************************************************************
 * Конфигурация пинов для использования нескольких АЦП HX711:
-*       HX711_1     HX711_2     HX711_3
-* DT:   PC2         PA0         PA4
-* SCK:  PC3         PA3         PA5
+*       HX711_1     HX711_2
+* DT:   PC2         PA0
+* SCK:  PC3         PA3
 *********************************************************************** */
 
 // HX711_1 ---------------------------------------------------------------
@@ -121,44 +121,29 @@ using PinSCK1_t = STM_CppLib::STM_GPIO::GPIO_Pin
 
 using HX711_1_t = HX711::HX711<PinDT1_t, PinSCK1_t>;
 
-// // HX711_2 ---------------------------------------------------------------
-// using PinDT2_t = STM_CppLib::STM_GPIO::GPIO_Pin
-//     <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource0>;
+// HX711_2 ---------------------------------------------------------------
+using PinDT2_t = STM_CppLib::STM_GPIO::GPIO_Pin
+    <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource0>;
 
-// using PinSCK2_t = STM_CppLib::STM_GPIO::GPIO_Pin
-//     <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource3>;
+using PinSCK2_t = STM_CppLib::STM_GPIO::GPIO_Pin
+    <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource3>;
 
-// using HX711_2_t = HX711::HX711<PinDT2_t, PinSCK2_t>;
-
-// // HX711_3 ---------------------------------------------------------------
-// using PinDT3_t = STM_CppLib::STM_GPIO::GPIO_Pin
-//     <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource4>;
-
-// using PinSCK3_t = STM_CppLib::STM_GPIO::GPIO_Pin
-//     <STM_CppLib::STM_GPIO::GPIO_Port::PortA, GPIO_PinSource5>;
-
-// using HX711_3_t = HX711::HX711<PinDT3_t, PinSCK3_t>;
+using HX711_2_t = HX711::HX711<PinDT2_t, PinSCK2_t>;
 
 // HX711_array -----------------------------------------------------------
-// Вариант, который хранит типы HX711
-using HX711Variant = std::variant<
-                                  HX711_1_t
-                                //   HX711_2_t, 
-                                //   HX711_3_t
-                                >;
+// Variant, который хранит типы HX711
+using HX711Variant = std::variant<HX711_1_t, HX711_2_t>;
 constexpr std::size_t HX711num = std::variant_size<HX711Variant>::value;
 
 std::array<HX711Variant, HX711num> hx711_array = {
     HX711_1_t(HX711::HX711Gain::Gain128_A),
-    // HX711_2_t(HX711::HX711Gain::Gain128_A),
-    // HX711_3_t(HX711::HX711Gain::Gain128_A)
+    HX711_2_t(HX711::HX711Gain::Gain128_A),
 };
 
 // HX711Packages_array ---------------------------------------------------
 std::array<Packages::HX711Package, HX711num> hx711_package_array = {
     Packages::HX711Package(&(std::get_if<0>(&hx711_array[0])->adc_value), 1),
-    // Packages::HX711Package(&(std::get_if<1>(&hx711_array[1])->adc_value), 2),
-    // Packages::HX711Package(&(std::get_if<2>(&hx711_array[2])->adc_value), 3)
+    Packages::HX711Package(&(std::get_if<1>(&hx711_array[1])->adc_value), 2),
 };
 
 // -------------------------------------------------------------------------------

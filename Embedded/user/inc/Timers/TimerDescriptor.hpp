@@ -25,7 +25,6 @@
 #include "stm32f30x_misc.h"
 #include "stm32f30x_tim.h"
 
-#include "Periphery.hpp"
 #include "TimerConfig.hpp"
 
 /* Defines -------------------------------------------------------------------*/
