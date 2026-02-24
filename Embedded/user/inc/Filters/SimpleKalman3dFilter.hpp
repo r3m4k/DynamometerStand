@@ -85,7 +85,7 @@ public:
 
         K = P_pred / (P_pred + R);
         filtered_value = pred_value + K * (input_value - pred_value);
-        P = (TriaxialData(1, 1, 1) - K) * P_pred;
+        P = (TriaxialData(1) - K) * P_pred;
     }
 };
 

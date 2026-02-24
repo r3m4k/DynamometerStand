@@ -54,8 +54,8 @@ namespace HX711
 
     /**
      * @brief   Шаблонный класс для работы с 24-разрядным АЦП HX711.
-     * @tparam  PinDT   Тип пина данных (должен удовлетворять концепту GpioPinConcept)
-     * @tparam  PinSCK  Тип тактового пина (должен удовлетворять концепту GpioPinConcept)
+     * @tparam  PinDT   Тип пина данных
+     * @tparam  PinSCK  Тип тактового пина
      * @details Реализует протокол обмена с HX711: ожидание готовности, чтение 24 бит,
      *          выбор канала/усиления для следующего измерения. Тайминги обеспечиваются
      *          функциями microDelay() и пустым циклом для сверхкоротких задержек.
@@ -63,10 +63,9 @@ namespace HX711
      * @note    Для работы требуются функции micro_timer_start/stop() и microDelay(),
      *          определённые в main.h.
      */
-    template <typename PinDT, typename PinSCK>
+    template <STM_CppLib::STM_GPIO::GpioPinConcept PinDT, 
+              STM_CppLib::STM_GPIO::GpioPinConcept PinSCK>
     class HX711{
-        static_assert(STM_CppLib::STM_GPIO::GpioPinConcept<PinDT>, "PinDT must satisfy GpioPinConcept");
-        static_assert(STM_CppLib::STM_GPIO::GpioPinConcept<PinSCK>, "PinSCK must satisfy GpioPinConcept");
     private:
         PinDT pin_dt;           ///< Пин данных (DOUT) HX711
         PinSCK pin_sck;         ///< Тактовый пин (SCK) HX711

@@ -41,6 +41,12 @@ public:
     TriaxialData(): x_coord(0), y_coord(0), z_coord(0) {}
     
     /** 
+     * @brief Конструктор с заданным общим значением для координат
+     * @param val Общее значение координат
+     */
+    TriaxialData(float val): x_coord(val), y_coord(val), z_coord(val) {}
+    
+    /** 
      * @brief Конструктор с заданными координатами
      * @param _x Значение координаты X
      * @param _y Значение координаты Y
