@@ -7,17 +7,16 @@ __author__ = 'Roman Romanovskiy'
 
 # --------------------------------------------------------
 
-from .decoder_protocol import DecoderProtocol
-from .data_description import GyronavtData, TriaxialData
-from .gyronavt_decoder import GyronavtDecoder
+from .decoder_protocol import HX711Protocol
+from .data_description import HX711Data
+from .hx711_decoder import HX711Decoder
 
 # --------------------------------------------------------
 
 __all__ = [
-    'DecoderProtocol',
-    'GyronavtDecoder',
-    'GyronavtData',
-    'TriaxialData'
+    'HX711Protocol',
+    'HX711Decoder',
+    'HX711Data',
 ]
 
 # --------------------------------------------------------

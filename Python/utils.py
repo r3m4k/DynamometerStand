@@ -1,6 +1,7 @@
 # System imports
 import os
 import json
+from pathlib import Path
 
 # External imports
 
@@ -9,7 +10,7 @@ import json
 #############################################
 
 
-cache_filename = os.path.normpath('D://Job//Gyronavt//GyronavtData//cache.json')
+cache_filename = Path(__file__).resolve().parent / 'cache.json'
 
 
 def float_to_csv_format(value):

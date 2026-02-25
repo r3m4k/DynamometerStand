@@ -10,15 +10,12 @@ from typing import Protocol, TypeVar
 # Объявление типа, который будет обозначать тип данных, хранящихся в received_data
 T = TypeVar('T')
 
-class DecoderProtocol(Protocol[T]):
+class HX711Protocol(Protocol[T]):
     """
     Протокол, описывающий любой декодер, который принимает байты
     и накапливает декодированные объекты типа T.
     """
     received_data: list[T]
-
-    @property
-    def data_len(self) -> int: ...
 
     def byte_processing(self, bt: bytes) -> None: ...
 
