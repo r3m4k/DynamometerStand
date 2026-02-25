@@ -1,7 +1,7 @@
 /** ****************************************************************************
- * @file    ComPort.hpp
+ * @file    UsbPort.hpp
  * @brief   Класс для работы с виртуальным COM-портом (VCP) через USB.
- * @details Содержит реализацию ComPort, которая использует декодер для
+ * @details Содержит реализацию UsbPort, которая использует декодер для
  *          обработки входящих сообщений и предоставляет методы для отправки
  *          пакетов и сообщений.
  **************************************************************************** */
@@ -38,7 +38,7 @@ using Decoder = DecoderTelega;
 
 // -----------------------------------------------------------------------------
 namespace STM_CppLib{
-    namespace ComPort
+    namespace UsbPort
     {
             
     /**
@@ -46,7 +46,7 @@ namespace STM_CppLib{
      * @details Требует, чтобы тип Decoder имел метод
      *          void message_processing(STM_CppLib::Message&).
      *          Используется для статической проверки совместимости декодера
-     *          с классом ComPort.
+     *          с классом UsbPort.
      */
     template<typename T>
     concept HasVoidMessageProcessing = requires(T decoder, STM_CppLib::Message& msg) {
@@ -58,7 +58,7 @@ namespace STM_CppLib{
      * @details Предоставляет инициализацию порта, отправку пакетов и сообщений,
      *          а также обработку входящих данных через декодер.
      */
-    class ComPort{
+    class UsbPort{
         
     #if ENABLE_COMMAND_PROCESSING
         static_assert(HasVoidMessageProcessing<Decoder>,
@@ -77,12 +77,12 @@ namespace STM_CppLib{
         /**
          * @brief   Конструктор по умолчанию.
          */
-        ComPort() = default;
+        UsbPort() = default;
 
         /**
          * @brief   Деструктор.
          */
-        ~ComPort() = default;
+        ~UsbPort() = default;
 
         /**
          * @brief   Инициализация COM-порта.
@@ -121,7 +121,7 @@ namespace STM_CppLib{
     #endif  /* ENABLE_COMMAND_PROCESSING */
     };
 
-    } // namespace ComPort
+    } // namespace UsbPort
 } // namespace STM_CppLib
 
 #endif /*   COM_PORT_HPP   */

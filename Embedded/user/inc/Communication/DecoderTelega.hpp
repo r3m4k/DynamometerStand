@@ -17,7 +17,6 @@
 #include "main.h"
 #include "Message.hpp"
 #include "CommandProcessing.hpp"
-#include "ComPort.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 

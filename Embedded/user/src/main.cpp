@@ -11,7 +11,8 @@
 #include "GpioPin.hpp"
 #include "HX711.hpp"
 #include "HX711Package.hpp"
-#include "ComPort.hpp"
+#include "UsbPort.hpp"
+#include "Usart.hpp"
 #include "Message.hpp"
 #include "CommandProcessing.hpp"
 
@@ -61,12 +62,16 @@ __attribute__((aligned(128)))    // Cortex-M4 требует выравнива�
 _user_pHandler _user_vector_table[IST_VECTORS_NUM] = {0};
 
 // Необходимые счётчики
-uint32_t microTimingDelay = 0;
+volatile uint32_t microTimingDelay = 0;
 uint32_t tick_counter = 0;
 
 // Стадии программы
-enum class ProgramStages{InfiniteSending};
-ProgramStages stage = ProgramStages::InfiniteSending;
+enum class ProgramStages{
+    BeforeBeginning,    // Фиктивная стадия программы (необходима для индикации первой смены стадии программы)
+    FooStage,           // Ожидание команды для начала измерения 
+    Measuring,          // Сбор и отправка данных с частотой 10 Гц
+};
+ProgramStages stage = ProgramStages::Measuring;
 
 // Светодиоды на плате
 STM_CppLib::Leds leds;
@@ -77,13 +82,15 @@ STM_CppLib::Commands::CommandManager command_manager;
 #endif  /* ENABLE_COMMAND_PROCESSING */
 
 // Интерфейс связи
-STM_CppLib::ComPort::ComPort com_port;
+// STM_CppLib::UsbPort::UsbPort com_port;
+STM_CppLib::USARTx com_port;
 
 // Используемые таймеры -------------------------------------------------------
 
 // Таймер для реализации микросекундных задержек
 STM_CppLib::STM_Timer::Timer2<[](){
     /* Объявление лямбды, которая будет вызываться в прерывании */
+    // leds.ChangeLedStatus(LED8);
     microTimingDelay_Decrement();
 }>  timer2;
 
@@ -93,7 +100,7 @@ STM_CppLib::STM_Timer::Timer3<[](){
     leds.ChangeLedStatus(LED9);
 
     tick_counter++;
-    read_all_hx711();           
+    read_all_hx711();         
     send_all_hx711_packages();
 }>  timer3;
 
@@ -185,18 +192,15 @@ int main()
     // Поморгаем светодиодами после успешной инициализации
     leds.ToggleLeds();
 
-    // Запустим таймеры
-    timer3.Start();
-    timer4.Start();
+    // ---------------------------------------------------------------------------
+
+    ProgramStages previous_stage = ProgramStages::BeforeBeginning;
+
 
     // ---------------------------------------------------------------------------
     // Основной цикл программы
     while (true)
     {
-        /* ***********************************************************************
-        * Место для дальнейшего размещения кода проверки 
-        * очереди поступивших команд и её отработки.
-        *********************************************************************** */
        
     #if ENABLE_COMMAND_PROCESSING
         if (!command_manager.command_queue.is_empty()){
@@ -205,12 +209,42 @@ int main()
         }
     #endif
 
+        /* ***********************************************************************
+        ШАБЛОН ОТРАБОТКИ СТАДИИ ПРОГРАММЫ:
+        Каждая стадия (stage) отрабатывается по единому принципу:
+        1. ИНИЦИАЛИЗАЦИЯ СТАДИИ (однократное выполнение при входе в стадию)
+        2. ЦИКЛИЧЕСКОЕ ВЫПОЛНЕНИЕ ОСНОВНОЙ ЛОГИКИ СТАДИИ
+        *********************************************************************** */
+
         switch (stage)
         {
-        case ProgramStages::InfiniteSending:
-            // Вызов "пустой" функции для ограничения оптимизации компилятора
-            __NOP();    
+        case ProgramStages::FooStage:
+            if (previous_stage != ProgramStages::FooStage){
+                previous_stage = ProgramStages::FooStage;
+                // Выключим все таймеры
+                timer3.Stop();
+                timer3.ResetCounter();
+                timer4.Stop();
+                timer4.ResetCounter();
+                // Включим все светодиоды
+                leds.LedsOn();
+            }
+            break;
+            
+        case ProgramStages::Measuring:
+            if (previous_stage != ProgramStages::Measuring){
+                previous_stage = ProgramStages::Measuring;
+                tick_counter = 0;
+                leds.LedsOff();
 
+                // Запустим таймер сбора данных
+                timer3.ResetCounter();
+                timer3.Start();
+
+                // Запустим таймер индикации работы
+                timer4.ResetCounter();
+                timer4.Start();
+            }
             break;
         }
     }
@@ -287,6 +321,18 @@ void UserEP3_OUT_Callback(uint8_t *buffer){
 #endif  /* ENABLE_COMMAND_PROCESSING */
 }
 
+void USART1_IRQHandler(void)
+{
+    if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) // было прерывание от приемника
+        __NOP();
+
+    if (USART_GetITStatus(USART1, USART_IT_TXE) != RESET){ // было прерывание от передатчика
+        while (USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET){} // дожидаюсь завершения выдачи текущего байта и отключаю прерывания от выдачи
+        USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
+    }
+    USART_ClearITPendingBit(USART1, USART_IT_ORE);
+}
+
 // Функции для обработки поступивших команд
 void restart(){
     NVIC_SystemReset();
@@ -339,7 +385,16 @@ void micro_timer_stop(void){
 
 void microDelay(uint32_t nTime){
     microTimingDelay = nTime;
+
+    // Запустим микросекундный таймер
+    // timer2.ResetCounter();
+    timer2.Start();
+
+    // Дождёмся окончания задержки по времени
     while (microTimingDelay != 0){}
+
+    // Выключим таймер для освобождения аппаратных ресурсов
+    timer2.Stop();
 }
 
 void microTimingDelay_Decrement(void){

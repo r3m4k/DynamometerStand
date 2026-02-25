@@ -42,9 +42,9 @@
 
 /**
  * @def     Prescaler_1MHz
- * @brief   Предделитель для частоты счёта 100 кГц
+ * @brief   Предделитель для частоты счёта 1 МГц
  */
-#define     Prescaler_1MHz       72
+#define     Prescaler_1MHz          72
 
 /* Global variables ----------------------------------------------------------*/
 

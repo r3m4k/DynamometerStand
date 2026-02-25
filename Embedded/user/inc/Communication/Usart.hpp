@@ -9,6 +9,7 @@
 #include "stm32f30x_usart.h"
 
 #include "BasePackage.hpp"
+#include "Message.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 
@@ -88,9 +89,15 @@ namespace STM_CppLib{
             }
         }
 
-        void SendPackage(STM_Packages::BasePackage& package){
+        void SendPackage(Packages::BasePackage& package){
             for (uint8_t i = 0; i < package.len; i++){
                 SendByte(package.data_ptr[i]);
+            }
+        }
+
+        void SendMessage(STM_CppLib::Message& message){
+            for (uint8_t i = 0; i < message.msg_size; i++){
+                SendByte(message.bytes_msg[i]);
             }
         }
     };

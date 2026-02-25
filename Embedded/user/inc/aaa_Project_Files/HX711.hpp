@@ -172,16 +172,14 @@ namespace HX711
             uint32_t timeout = HX711MaxTimeout;
 
             // Ждем готовности данных (DT переходит в низкий уровень)
-            while(pin_dt.ReadPin() == Bit_SET){
+            while(pin_dt.ReadPin() == Bit_RESET){
                 if (--timeout == 0) {
-                    micro_timer_stop();
                     error_handler();
                     return;
                 }
             }
 
             // Подождём 1 мкс
-            micro_timer_start();
             microDelay(1);      // T1: Небольшая задержка перед первым тактом
             
             // Считаем показания АЦП
@@ -220,7 +218,6 @@ namespace HX711
 
             // Завершим чтение данных (лишний сброс оставлен для гарантии)
             pin_sck.ResetPin();
-            micro_timer_stop();
         }
 
     private:

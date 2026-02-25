@@ -113,6 +113,7 @@ void microDelay(uint32_t nTime);
 void microTimingDelay_Decrement(void);
 
 // Системные функции
+void USART1_IRQHandler(void);
 void Error_Handler(void);
 void Delay(__IO uint32_t nTime);
 void TimingDelay_Decrement(void);
