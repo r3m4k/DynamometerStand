@@ -13,6 +13,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
+#include <cmath>
 
 #include "main.h"
 #include "GpioPin.hpp"
@@ -28,15 +29,49 @@ namespace HX711
     /**
      * @brief   Выбор канала и коэффициента усиления для HX711.
      * @details Значения соответствуют количеству импульсов после чтения 24 бит:
-     *          - Gain128_A: 1 импульс → канал A, усиление 128 (по умолчанию).
-     *          - Gain32_B:  2 импульса → канал B, усиление 32.
-     *          - Gain64_A:  3 импульса → канал A, усиление 64.
+     *          - Gain128_A: 1 импульс  → канал A, усиление 128
+     *          - Gain32_B:  2 импульса → канал B, усиление 32
+     *          - Gain64_A:  3 импульса → канал A, усиление 64
      */
     enum class HX711Gain : uint8_t {
         Gain128_A = 1,  ///< 1 pulse: Channel A, gain 128
         Gain32_B  = 2,  ///< 2 pulses: Channel B, gain 32
         Gain64_A  = 3   ///< 3 pulses: Channel A, gain 64
     };
+
+    /**
+     * @brief   Получить меньшее значение усиления (переключение вниз).
+     * @param   gain   Текущее значение усиления.
+     * @return  Предыдущее (меньшее) значение усиления в порядке возрастания:
+     *          - Gain32_B  → Gain32_B (без изменений, т.к. это минимум);
+     *          - Gain64_A  → Gain32_B;
+     *          - Gain128_A → Gain64_A.
+     */
+    HX711Gain get_lower_gain(HX711Gain gain){
+        switch (gain) {
+            case HX711Gain::Gain32_B:  return HX711Gain::Gain32_B;
+            case HX711Gain::Gain64_A:  return HX711Gain::Gain32_B;
+            case HX711Gain::Gain128_A: return HX711Gain::Gain64_A;
+            default: return gain;
+        }
+    }
+
+    /**
+     * @brief   Получить большее значение усиления (переключение вверх).
+     * @param   gain   Текущее значение усиления.
+     * @return  Следующее (большее) значение усиления в порядке возрастания:
+     *          - Gain32_B  → Gain64_A;
+     *          - Gain64_A  → Gain128_A;
+     *          - Gain128_A → Gain128_A (без изменений, т.к. это максимум).
+     */
+    HX711Gain get_higher_gain(HX711Gain gain){
+        switch (gain) {
+            case HX711Gain::Gain32_B:  return HX711Gain::Gain64_A;
+            case HX711Gain::Gain64_A:  return HX711Gain::Gain128_A;
+            case HX711Gain::Gain128_A: return HX711Gain::Gain128_A;
+            default: return gain;
+        }
+    }
 
     /// Разрядность АЦП (24 бита)
     constexpr uint8_t HX711BitRate = 24;
@@ -49,6 +84,27 @@ namespace HX711
 
     /// Максимальное число итераций при ожидании готовности данных (защита от зависания)
     constexpr uint32_t HX711MaxTimeout = 1000000;
+    
+    /// Флаг включения автоматического переключения канала и усиления (значение true)
+    constexpr bool enableAutoGainControl = true;
+
+    /// Флаг отключения автоматического переключения канала и усиления (значение false)
+    constexpr bool disableAutoGainControl = false;
+
+    /**
+     * @brief   Верхнее пороговое значение АЦП для автоматического переключения канала или усиления.
+     * @details Если измеренное значение превышает данный порог, то инициируется автоматическое
+     *          переключение канала или коэффициента усиления для предотвращения насыщения
+     *          и оптимизации измеряемого диапазона.
+     */
+    constexpr int32_t HighBoundaryADCValue = 0x7FFFFC;     // 0000 0000 0111 1111 1111 1111 1111 1100
+
+    /**
+     * @brief   Нижнее пороговое значение АЦП для автоматического переключения канала или усиления.
+     * @details Если измеренное значение меньше данного порога, то инициируется автоматическое
+     *          переключение канала или коэффициента усиления.
+     */
+    constexpr int32_t LowBoundaryADCValue = 0x0F;          // 0000 0000 0000 0000 0000 0000 0000 1111
 
     // -------------------------------------------------------------------------
 
@@ -69,10 +125,11 @@ namespace HX711
     private:
         PinDT pin_dt;           ///< Пин данных (DOUT) HX711
         PinSCK pin_sck;         ///< Тактовый пин (SCK) HX711
-        HX711Gain gain;         ///< Выбранный канал и усиление
-
+        
     public:
-        uint32_t adc_value;     ///< Последнее считанное значение АЦП
+        int32_t adc_value;      ///< Последнее считанное значение АЦП        
+        HX711Gain gain;         ///< Выбранный канал и усиление
+        bool auto_gain_control; ///< Флаг автоматического переключения канала и усиления
 
         /**
          * @brief   Конструктор по умолчанию запрещён – необходимо указать усиление.
@@ -83,7 +140,8 @@ namespace HX711
          * @brief   Конструктор с заданием усиления.
          * @param   initial_gain   Начальный канал и коэффициент усиления.
          */
-        HX711(HX711Gain initial_gain): gain(initial_gain) {}
+        HX711(HX711Gain initial_gain, bool init_auto_gain_control): 
+            gain(initial_gain), auto_gain_control(init_auto_gain_control) {}
 
         /**
          * @brief   Деструктор по умолчанию.
@@ -149,14 +207,16 @@ namespace HX711
                 // T4: длительность низкого уровня
                 microDelay(1);
             }
-            // Импульсы для указания усиления следующего измерения
-            set_channel_multiplier();
 
             // Преобразование в знаковое 32-битное число
+            // TODO: Проверить корректность перевода числа из дополнительного кода
 	        if (data & 0x800000) data |= 0xFF000000;
 
             // Сохраним data в adc_value
-            adc_value = data;
+            adc_value = static_cast<int32_t>(data);
+
+            // Импульсы для указания усиления следующего измерения
+            set_channel_multiplier();
 
             // Завершим чтение данных (лишний сброс оставлен для гарантии)
             pin_sck.ResetPin();
@@ -170,6 +230,16 @@ namespace HX711
          * @details Количество импульсов определяется значением gain.
          */
         void set_channel_multiplier(){
+            if (auto_gain_control){
+                // Автоматически изменим выбранный канал и усиление
+                if(abs(adc_value) < LowBoundaryADCValue){
+                    gain = get_higher_gain(gain);
+                }
+                else if (abs(adc_value) > HighBoundaryADCValue){
+                    gain = get_lower_gain(gain);
+                }                
+            }
+
 	        for (uint8_t i = 0; i < static_cast<uint8_t>(gain); i++){
                 pin_sck.SetPin();
                 microDelay(1);          // T3: длительность высокого уровня   

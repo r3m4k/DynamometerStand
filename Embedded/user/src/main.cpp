@@ -136,14 +136,14 @@ using HX711Variant = std::variant<HX711_1_t, HX711_2_t>;
 constexpr std::size_t HX711num = std::variant_size<HX711Variant>::value;
 
 std::array<HX711Variant, HX711num> hx711_array = {
-    HX711_1_t(HX711::HX711Gain::Gain128_A),
-    HX711_2_t(HX711::HX711Gain::Gain128_A),
+    HX711_1_t(HX711::HX711Gain::Gain128_A, HX711::enableAutoGainControl),
+    HX711_2_t(HX711::HX711Gain::Gain128_A, HX711::enableAutoGainControl),
 };
 
 // HX711Packages_array ---------------------------------------------------
 std::array<Packages::HX711Package, HX711num> hx711_package_array = {
-    Packages::HX711Package(&(std::get_if<0>(&hx711_array[0])->adc_value), 1),
-    Packages::HX711Package(&(std::get_if<1>(&hx711_array[1])->adc_value), 2),
+    Packages::HX711Package(1, &(std::get_if<0>(&hx711_array[0])->adc_value), &(std::get_if<0>(&hx711_array[0])->gain)),
+    Packages::HX711Package(2, &(std::get_if<1>(&hx711_array[1])->adc_value), &(std::get_if<1>(&hx711_array[1])->gain)),
 };
 
 // -------------------------------------------------------------------------------
@@ -239,9 +239,12 @@ void InitAll(){
     timer4.Init(tim4_period);
 }
 
+
 // -------------------------------------------------------------------------------
 // Функции для работы со всеми подключёнными АЦП HX711
 // -------------------------------------------------------------------------------
+
+// Инициализация всех подключённых АЦП HX711
 void init_all_hx711(){
     for(auto& hx711_variant : hx711_array){
         std::visit([](auto& hx711){
@@ -250,6 +253,7 @@ void init_all_hx711(){
     }
 }
 
+// Чтение всех подключённых АЦП HX711
 void read_all_hx711(){
     for(auto& hx711_variant : hx711_array){
         std::visit([](auto& hx711){
@@ -258,6 +262,7 @@ void read_all_hx711(){
     }
 }
 
+// Отправка пакетов данных о всех подключённых АЦП HX711
 void send_all_hx711_packages(){
     for (auto& package : hx711_package_array){
         // Обновим данные в пакете
@@ -269,7 +274,6 @@ void send_all_hx711_packages(){
         com_port.SendPackage(package);
     }
 }
-
 
 
 // -------------------------------------------------------------------------------
