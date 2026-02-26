@@ -87,12 +87,8 @@ STM_CppLib::USARTx com_port;
 
 // Используемые таймеры -------------------------------------------------------
 
-// Таймер для реализации микросекундных задержек
-STM_CppLib::STM_Timer::Timer2<[](){
-    /* Объявление лямбды, которая будет вызываться в прерывании */
-    // leds.ChangeLedStatus(LED8);
-    microTimingDelay_Decrement();
-}>  timer2;
+// Микросекундный таймер
+STM_CppLib::STM_Timer::MicroTimer micro_timer;
 
 // Таймер для чтения АЦП с частотой 10 Гц
 STM_CppLib::STM_Timer::Timer3<[](){
@@ -262,7 +258,7 @@ void InitAll(){
     init_all_hx711();
 
     // Настройка таймеров --------------------------------------------------------
-    micro_timer_init();
+    micro_timer.Init();
     
     // Настройка основного таймера с периодом счёта в 100 мс (10 Гц)
     uint32_t tim3_period = 1000 - 1;
@@ -361,45 +357,6 @@ void send_error_msg(){
     com_port.SendMessage(message);
 }
 
-// -------------------------------------------------------------------------------
-// Функции для работы с микросекундным таймером 
-// -------------------------------------------------------------------------------
-
-// Инициализация микросекундного таймера
-void micro_timer_init(void){
-    // Настройка таймера для реализации микросекундных задержек
-    uint32_t tim2_period = 1;
-    timer2.Init(tim2_period, Prescaler_1MHz);
-}
-
-// Запуск микросекундного таймера
-void micro_timer_start(void){
-    timer2.ResetCounter();
-    timer2.Start();
-}
-
-// Остановка микросекундного таймера
-void micro_timer_stop(void){
-    timer2.Stop();
-}
-
-void microDelay(uint32_t nTime){
-    microTimingDelay = nTime;
-
-    // Запустим микросекундный таймер
-    // timer2.ResetCounter();
-    timer2.Start();
-
-    // Дождёмся окончания задержки по времени
-    while (microTimingDelay != 0){}
-
-    // Выключим таймер для освобождения аппаратных ресурсов
-    timer2.Stop();
-}
-
-void microTimingDelay_Decrement(void){
-    if (microTimingDelay != 0x00){  microTimingDelay--; }
-}
 
 // -------------------------------------------------------------------------------
 // Системные функции

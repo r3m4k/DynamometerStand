@@ -2,9 +2,9 @@
  * @file    HX711.hpp
  * @author  Романовский Роман
  * @brief   Драйвер для 24-битного АЦП HX711
- * @details Содержит шаблонный класс HX711 для управления датчиками на основе
- *          HX711 через два GPIO-пина (данные и тактовый сигнал). Поддерживает
- *          выбор канала и коэффициента усиления с помощью перечисления HX711Gain.
+ * @details Содержит шаблонный класс HX711 для управления АЦП HX711 через два 
+ *          GPIO-пина (данные и тактовый сигнал). Поддерживает выбор канала 
+ *          и коэффициента усиления с помощью перечисления HX711Gain.
  **************************************************************************** */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
@@ -15,12 +15,13 @@
 #include <stdint.h>
 #include <cmath>
 
-#include "main.h"
 #include "GpioPin.hpp"
+#include "MicroTimer.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 
 /* Global variables ----------------------------------------------------------*/
+extern STM_CppLib::STM_Timer::MicroTimer micro_timer; 
 
 // -----------------------------------------------------------------------------
 namespace HX711
@@ -114,10 +115,8 @@ namespace HX711
      * @tparam  PinSCK  Тип тактового пина
      * @details Реализует протокол обмена с HX711: ожидание готовности, чтение 24 бит,
      *          выбор канала/усиления для следующего измерения. Тайминги обеспечиваются
-     *          функциями microDelay() и пустым циклом для сверхкоротких задержек.
+     *          таймером micro_timer и пустым циклом для сверхкоротких задержек.
      * @warning Перед использованием необходимо вызвать init() для настройки пинов.
-     * @note    Для работы требуются функции micro_timer_start/stop() и microDelay(),
-     *          определённые в main.h.
      */
     template <STM_CppLib::STM_GPIO::GpioPinConcept PinDT, 
               STM_CppLib::STM_GPIO::GpioPinConcept PinSCK>
@@ -125,7 +124,10 @@ namespace HX711
     private:
         PinDT pin_dt;           ///< Пин данных (DOUT) HX711
         PinSCK pin_sck;         ///< Тактовый пин (SCK) HX711
-        
+
+        ///< Ссылка на таймер для микросекундных задержек
+        // STM_CppLib::STM_Timer::MicroTimer& micro_timer = STM_CppLib::STM_Timer::MicroTimer::getInstance();
+
     public:
         int32_t adc_value;      ///< Последнее считанное значение АЦП        
         HX711Gain gain;         ///< Выбранный канал и усиление
@@ -154,8 +156,8 @@ namespace HX711
          *          скорость 2 МГц. Должен быть вызван до первого чтения.
          */
         void init(){
-            pin_dt.InitPin(GPIO_Mode_IN, GPIO_PuPd_NOPULL, GPIO_Speed_2MHz);
-            pin_sck.InitPin(GPIO_Mode_OUT, GPIO_PuPd_NOPULL, GPIO_Speed_2MHz);
+            pin_dt.InitPin(GPIO_Mode_IN, GPIO_PuPd_NOPULL);
+            pin_sck.InitPin(GPIO_Mode_OUT, GPIO_PuPd_NOPULL);
         }
 
         /**
@@ -172,15 +174,15 @@ namespace HX711
             uint32_t timeout = HX711MaxTimeout;
 
             // Ждем готовности данных (DT переходит в низкий уровень)
-            while(pin_dt.ReadPin() == Bit_RESET){
-                if (--timeout == 0) {
-                    error_handler();
-                    return;
-                }
-            }
+            // while(pin_dt.ReadPin() == Bit_SET){
+            //     if (--timeout == 0) {
+            //         error_handler();
+            //         return;
+            //     }
+            // }
 
             // Подождём 1 мкс
-            microDelay(1);      // T1: Небольшая задержка перед первым тактом
+            micro_timer.Delay(1);      // T1: Небольшая задержка перед первым тактом
             
             // Считаем показания АЦП
 	        for (uint8_t i = 0; i < HX711BitRate; i++){
@@ -198,12 +200,12 @@ namespace HX711
                     data |= 1;
                 }
                 // T3: длительность высокого уровня
-                microDelay(1);      
+                micro_timer.Delay(1);      
 
                 pin_sck.ResetPin();
                 
                 // T4: длительность низкого уровня
-                microDelay(1);
+                micro_timer.Delay(1);
             }
 
             // Преобразование в знаковое 32-битное число
@@ -239,9 +241,9 @@ namespace HX711
 
 	        for (uint8_t i = 0; i < static_cast<uint8_t>(gain); i++){
                 pin_sck.SetPin();
-                microDelay(1);          // T3: длительность высокого уровня   
+                micro_timer.Delay(1);          // T3: длительность высокого уровня   
                 pin_sck.ResetPin();
-                microDelay(1);          // T4: длительность низкого уровня
+                micro_timer.Delay(1);          // T4: длительность низкого уровня
             }
         }
 
