@@ -1,4 +1,5 @@
 # System imports
+from dataclasses import dataclass
 
 # External imports
 
@@ -6,5 +7,6 @@
 
 #############################################
 
+@dataclass
 class Command:
-    pass
+    byte_coding: list[bytes]

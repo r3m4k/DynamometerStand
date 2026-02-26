@@ -8,10 +8,10 @@ from typing import NamedTuple
 #############################################
 
 class HX711Data(NamedTuple):
-    time: int
-    id: int
-    adc_value: int
-    gain: int
+    time: int           # uint32_t
+    id: int             # uint8_t
+    adc_value: int      # int32_t
+    gain: int           # uint8_t
 
     def __str__(self):
         return (f'Time:         {self.time}\n'
