@@ -61,8 +61,9 @@ extern pHandler __isr_vectors[];
 __attribute__((aligned(128)))    // Cortex-M4 требует выравнивание по 128 байт!
 _user_pHandler _user_vector_table[IST_VECTORS_NUM] = {0};
 
-// Необходимые счётчики
+// Необходимые счётчики и флаги
 uint32_t tick_counter = 0;
+bool hx711_reading_flag = false;
 
 // Стадии программы
 enum class ProgramStages{
@@ -86,7 +87,7 @@ STM_CppLib::USARTx com_port;
 
 // Используемые таймеры -------------------------------------------------------
 
-// Микросекундный таймер
+// Микросекундный таймер на базе Timer2
 STM_CppLib::STM_Timer::MicroTimer micro_timer;
 
 // Таймер для чтения АЦП с частотой 10 Гц
@@ -95,11 +96,9 @@ STM_CppLib::STM_Timer::Timer3<[](){
     leds.ChangeLedStatus(LED9);
 
     tick_counter++;
-    read_all_hx711();         
-    send_all_hx711_packages();
-}>  timer3;     // Таймер, по которому будут считываться данные с датчиков
-                // ВАЖНО: Для него необходимо задать более низкий приоритет
-                // прерывания, тк чтение данных с датчиков долгая процедура!
+    hx711_reading_flag = true;
+
+}>  timer3;
 
 // Таймер для мерцания светодиодами LED6, LED7
 STM_CppLib::STM_Timer::Timer4<[](){
@@ -242,6 +241,16 @@ int main()
                 timer4.ResetCounter();
                 timer4.Start();
             }
+
+            if (hx711_reading_flag){
+                // Считаем значения АЦП и отправим пакеты данных
+                read_all_hx711();
+                send_all_hx711_packages();
+
+                // Сбросим флаг
+                hx711_reading_flag = false;
+            }
+
             break;
         }
     }

@@ -15,6 +15,7 @@
 #include <stdint.h>
 
 #include "BasicTimers.hpp"
+#include "GPTimers.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 
@@ -43,7 +44,7 @@ namespace STM_CppLib{
                 if (microTimingDelay != 0x00){  microTimingDelay--; }
             } 
 
-            Timer7<microTimingDelay_Decrement> micro_timer;   ///< Объект аппаратного таймера TIM7
+            Timer2<microTimingDelay_Decrement> micro_timer;   ///< Объект аппаратного таймера TIM7
 
             
         public:

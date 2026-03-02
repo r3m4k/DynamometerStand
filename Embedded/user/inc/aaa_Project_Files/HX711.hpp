@@ -174,12 +174,12 @@ namespace HX711
             uint32_t timeout = HX711MaxTimeout;
 
             // Ждем готовности данных (DT переходит в низкий уровень)
-            // while(pin_dt.ReadPin() == Bit_SET){
-            //     if (--timeout == 0) {
-            //         error_handler();
-            //         return;
-            //     }
-            // }
+            while(pin_dt.ReadPin() == Bit_SET){
+                if (--timeout == 0) {
+                    error_handler();
+                    return;
+                }
+            }
 
             // Подождём 1 мкс
             micro_timer.Delay(1);      // T1: Небольшая задержка перед первым тактом
@@ -253,10 +253,10 @@ namespace HX711
          *          экземпляра из списка или установку флага ошибки.
          */
         void error_handler(){
-            while (true)
-            {
-                /* code */
-            }
+            // while (true)
+            // {
+            //     /* code */
+            // }
         }
     };
 
