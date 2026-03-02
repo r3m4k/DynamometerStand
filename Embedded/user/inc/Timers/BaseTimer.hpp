@@ -47,7 +47,7 @@
 #define     Prescaler_1MHz          72
 
 /**
- * @def     Prescaler_1MHz
+ * @def     Prescaler_2MHz
  * @brief   Предделитель для частоты счёта 2 МГц
  */
 #define     Prescaler_2MHz          36

@@ -62,7 +62,6 @@ __attribute__((aligned(128)))    // Cortex-M4 требует выравнива�
 _user_pHandler _user_vector_table[IST_VECTORS_NUM] = {0};
 
 // Необходимые счётчики
-volatile uint32_t microTimingDelay = 0;
 uint32_t tick_counter = 0;
 
 // Стадии программы
@@ -98,7 +97,9 @@ STM_CppLib::STM_Timer::Timer3<[](){
     tick_counter++;
     read_all_hx711();         
     send_all_hx711_packages();
-}>  timer3;
+}>  timer3;     // Таймер, по которому будут считываться данные с датчиков
+                // ВАЖНО: Для него необходимо задать более низкий приоритет
+                // прерывания, тк чтение данных с датчиков долгая процедура!
 
 // Таймер для мерцания светодиодами LED6, LED7
 STM_CppLib::STM_Timer::Timer4<[](){
@@ -262,7 +263,7 @@ void InitAll(){
     
     // Настройка основного таймера с периодом счёта в 100 мс (10 Гц)
     uint32_t tim3_period = 1000 - 1;
-    timer3.Init(tim3_period);
+    timer3.Init(tim3_period, Prescaler_10kHz, nullptr, 2, 0);
 
     // Настройка таймера для мерцания светодиодами с периодом счёта в 2 с
     uint32_t tim4_period = 20000 - 1;
