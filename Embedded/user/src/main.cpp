@@ -61,9 +61,9 @@ extern pHandler __isr_vectors[];
 __attribute__((aligned(128)))    // Cortex-M4 требует выравнивание по 128 байт!
 _user_pHandler _user_vector_table[IST_VECTORS_NUM] = {0};
 
-// Необходимые счётчики
-volatile uint32_t microTimingDelay = 0;
+// Необходимые счётчики и флаги
 uint32_t tick_counter = 0;
+bool hx711_reading_flag = false;
 
 // Стадии программы
 enum class ProgramStages{
@@ -87,12 +87,8 @@ STM_CppLib::USARTx com_port;
 
 // Используемые таймеры -------------------------------------------------------
 
-// Таймер для реализации микросекундных задержек
-STM_CppLib::STM_Timer::Timer2<[](){
-    /* Объявление лямбды, которая будет вызываться в прерывании */
-    // leds.ChangeLedStatus(LED8);
-    microTimingDelay_Decrement();
-}>  timer2;
+// Микросекундный таймер на базе Timer2
+STM_CppLib::STM_Timer::MicroTimer micro_timer;
 
 // Таймер для чтения АЦП с частотой 10 Гц
 STM_CppLib::STM_Timer::Timer3<[](){
@@ -100,8 +96,8 @@ STM_CppLib::STM_Timer::Timer3<[](){
     leds.ChangeLedStatus(LED9);
 
     tick_counter++;
-    read_all_hx711();         
-    send_all_hx711_packages();
+    hx711_reading_flag = true;
+
 }>  timer3;
 
 // Таймер для мерцания светодиодами LED6, LED7
@@ -245,6 +241,16 @@ int main()
                 timer4.ResetCounter();
                 timer4.Start();
             }
+
+            if (hx711_reading_flag){
+                // Считаем значения АЦП и отправим пакеты данных
+                read_all_hx711();
+                send_all_hx711_packages();
+
+                // Сбросим флаг
+                hx711_reading_flag = false;
+            }
+
             break;
         }
     }
@@ -262,11 +268,11 @@ void InitAll(){
     init_all_hx711();
 
     // Настройка таймеров --------------------------------------------------------
-    micro_timer_init();
+    micro_timer.Init();
     
     // Настройка основного таймера с периодом счёта в 100 мс (10 Гц)
     uint32_t tim3_period = 1000 - 1;
-    timer3.Init(tim3_period);
+    timer3.Init(tim3_period, Prescaler_10kHz, nullptr, 2, 0);
 
     // Настройка таймера для мерцания светодиодами с периодом счёта в 2 с
     uint32_t tim4_period = 20000 - 1;
@@ -361,45 +367,6 @@ void send_error_msg(){
     com_port.SendMessage(message);
 }
 
-// -------------------------------------------------------------------------------
-// Функции для работы с микросекундным таймером 
-// -------------------------------------------------------------------------------
-
-// Инициализация микросекундного таймера
-void micro_timer_init(void){
-    // Настройка таймера для реализации микросекундных задержек
-    uint32_t tim2_period = 1;
-    timer2.Init(tim2_period, Prescaler_1MHz);
-}
-
-// Запуск микросекундного таймера
-void micro_timer_start(void){
-    timer2.ResetCounter();
-    timer2.Start();
-}
-
-// Остановка микросекундного таймера
-void micro_timer_stop(void){
-    timer2.Stop();
-}
-
-void microDelay(uint32_t nTime){
-    microTimingDelay = nTime;
-
-    // Запустим микросекундный таймер
-    // timer2.ResetCounter();
-    timer2.Start();
-
-    // Дождёмся окончания задержки по времени
-    while (microTimingDelay != 0){}
-
-    // Выключим таймер для освобождения аппаратных ресурсов
-    timer2.Stop();
-}
-
-void microTimingDelay_Decrement(void){
-    if (microTimingDelay != 0x00){  microTimingDelay--; }
-}
 
 // -------------------------------------------------------------------------------
 // Системные функции
