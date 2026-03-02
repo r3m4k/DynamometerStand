@@ -105,13 +105,6 @@ void send_confirm_msg(void);
 void send_hello_msg(void);
 void send_error_msg(void);
 
-// Функции для работы с микросекундным таймером 
-void micro_timer_init(void);
-void micro_timer_start(void);
-void micro_timer_stop(void);
-void microDelay(uint32_t nTime);
-void microTimingDelay_Decrement(void);
-
 // Системные функции
 void USART1_IRQHandler(void);
 void Error_Handler(void);

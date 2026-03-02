@@ -46,6 +46,12 @@
  */
 #define     Prescaler_1MHz          72
 
+/**
+ * @def     Prescaler_2MHz
+ * @brief   Предделитель для частоты счёта 2 МГц
+ */
+#define     Prescaler_2MHz          36
+
 /* Global variables ----------------------------------------------------------*/
 
 // -----------------------------------------------------------------------------
@@ -103,7 +109,7 @@ namespace STM_CppLib{
 
             TIM_TimeBaseStructInit(&TIM_TimeBaseStructure);
             TIM_TimeBaseStructure.TIM_Period = timer_config->TimPeriod;
-            TIM_TimeBaseStructure.TIM_Prescaler = timer_config->TimPrescaler;
+            TIM_TimeBaseStructure.TIM_Prescaler = timer_config->TimPrescaler - 1;
             TIM_TimeBaseInit(TIMx, &TIM_TimeBaseStructure);
         }
         

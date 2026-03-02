@@ -66,8 +66,8 @@ namespace Packages{
         struct package_body_t
         {
             uint8_t header[4] = {HeaderFirstByte, HeaderSecondByte, Format, 0};
-            uint8_t id_num;
             uint32_t time = 0;
+            uint8_t id_num;
             int32_t adc_value;
             uint8_t gain;       
             uint8_t control_sum = 0;
