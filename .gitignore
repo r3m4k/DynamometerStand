@@ -1,4 +1,6 @@
-
+# Embedded ignores
 Embedded/Debug_Win/
 
+# Python ignores
 Python/.idea/
+Python/.venv/
