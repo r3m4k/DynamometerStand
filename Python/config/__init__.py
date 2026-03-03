@@ -25,7 +25,7 @@ from config.app_config import AppConfig
 # Определяем путь к файлу конфигурации
 _config_path = Path(__file__).parent / "config" / "settings.json"
 
-# Глобальный экземпляр конфигурации (синглтон)
+# Глобальный экземпляр конфигурации
 config = AppConfig.load(_config_path)
 
 # --------------------------------------------------------

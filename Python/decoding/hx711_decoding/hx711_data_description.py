@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""Описание структур данных для декодера HX711.
+
+Содержит перечисление `HX711Gain` для представления коэффициентов усиления,
+класс `HX711Data` для хранения одного пакета данных с АЦП, а также класс
+`HX711DataIndexes` с константами смещений полей внутри бинарного пакета.
+"""
+
 # System imports
 from typing import NamedTuple
 from enum import IntEnum
@@ -10,6 +18,14 @@ from enum import IntEnum
 
 
 class HX711Gain(IntEnum):
+    """Коэффициент усиления и канал АЦП HX711.
+
+    Значения соответствуют прошивке микроконтроллера:
+        1 — канал A, усиление 128
+        2 — канал B, усиление 32
+        3 — канал A, усиление 64
+    """
+
     GAIN_128_A = 1   # Channel A, gain 128
     GAIN_32_B  = 2   # Channel B, gain 32
     GAIN_64_A  = 3   # Channel A, gain 64
@@ -48,6 +64,15 @@ class HX711Gain(IntEnum):
 # ------------------------------------------
 
 class HX711Data(NamedTuple):
+    """Структура пакета данных, полученный от АЦП HX711.
+
+    Attributes:
+        time (int): Временная метка (uint32_t, количество тиков).
+        id (int): Идентификатор датчика (uint8_t).
+        adc_value (int): Значение АЦП (int32_t, знаковое).
+        gain (HX711Gain): Коэффициент усиления и канал.
+    """
+
     time: int           # uint32_t
     id: int             # uint8_t
     adc_value: int      # int32_t
@@ -63,6 +88,9 @@ class HX711Data(NamedTuple):
 
 # Описание начала индексов данных внутри посылки
 class HX711DataIndexes:
+    """Смещения начала полей данных внутри бинарного пакета.
+    Индексы отсчитываются от начала всей посылки, включая заголовок.
+    """
     time_index = 4
     id_index = 8
     adc_index = 9

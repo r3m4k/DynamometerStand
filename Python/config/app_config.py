@@ -9,6 +9,7 @@
 # System imports
 import json
 from pathlib import Path
+from typing import Optional
 
 # External imports
 from pydantic import BaseModel, ConfigDict, Field
@@ -36,22 +37,17 @@ class AppConfig(BaseModel):
 
     model_config = ConfigDict(extra='forbid')
 
-    com_port: ComPortConfig = Field(
-        default_factory=ComPortConfig,
-        description="Настройки COM-порта"
-    )
-    file_source: FileSourceConfig = Field(
-        default_factory=FileSourceConfig,
-        description="Настройки файлового источника"
-    )
-    save_dir: Path = Field(
-        default_factory=lambda: Path("./results"),
-        description="Директория для сохранения результатов"
-    )
+    com_port: ComPortConfig = Field(default_factory=ComPortConfig, description="Настройки COM-порта")
+    file_source: FileSourceConfig = Field(default_factory=FileSourceConfig, description="Настройки файлового источника")
+    save_dir: Path = Field(default_factory=lambda: Path("./results"), description="Директория для сохранения результатов")
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._config_path: Optional[Path] = None
 
     @classmethod
     def load(cls, config_path: Path) -> 'AppConfig':
-        """Загружает конфигурацию из JSON-файла.
+        """Загружает конфигурацию из JSON-файла и запоминает путь.
 
         Если файл не существует, создаёт экземпляр со значениями по умолчанию,
         сохраняет его по указанному пути и возвращает этот экземпляр.
@@ -60,31 +56,36 @@ class AppConfig(BaseModel):
             config_path (Path): Путь к JSON-файлу конфигурации.
 
         Returns:
-            AppConfig: Экземпляр конфигурации, загруженный из файла
-            или созданный по умолчанию.
-
-        Raises:
-            json.JSONDecodeError: Если файл содержит некорректный JSON.
-            ValidationError: Если данные в файле не соответствуют модели.
+            AppConfig: Экземпляр конфигурации, связанный с указанным путём.
         """
         if config_path.exists():
             with open(config_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            return cls(**data)
-        instance = cls()
-        instance.save(config_path)
+            instance = cls(**data)
+        else:
+            instance = cls()
+        instance._config_path = config_path
+        if not config_path.exists():
+            instance.save()  # сохраняем новый файл с умолчаниями
         return instance
 
-    def save(self, config_path: Path) -> None:
+    def save(self, config_path: Optional[Path] = None) -> None:
         """Сохраняет текущую конфигурацию в JSON-файл.
 
-        Перед записью создаёт родительскую директорию, если она не существует.
-        Использует отступы (indent=4) для читаемости.
+        Если путь не указан, используется путь, сохранённый при загрузке.
+        Если сохранённого пути нет, выбрасывается ValueError.
 
         Args:
-            config_path (Path): Путь для сохранения файла конфигурации.
+            config_path (Path, optional): Путь для сохранения. Если не указан,
+                используется внутренний путь из загрузки.
+
+        Raises:
+            ValueError: Если не указан путь и внутренний путь не задан.
         """
+        if config_path is None:
+            config_path = self._config_path
+        if config_path is None:
+            raise ValueError("Не указан путь для сохранения конфигурации")
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, 'w', encoding='utf-8') as f:
-            # model_dump(mode='json') преобразует Path в строку и т.д.
             json.dump(self.model_dump(mode='json'), f, indent=4, ensure_ascii=False)
