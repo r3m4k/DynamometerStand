@@ -1,5 +1,6 @@
 # System imports
 from typing import cast
+from pathlib import Path
 
 # External imports
 import numpy as np
@@ -63,22 +64,15 @@ class Canvas:
 
     """
 
-    def __init__(self, fig_height=8, fig_width=12, n_rows=1, n_cols=1, **ax_kwargs):
+    def __init__(self, fig_width=12, fig_height=8, n_rows=1, n_cols=1, **ax_kwargs):
         # Специально оставляем fig и ax публичными, чтобы в дальнейшем использовании была возможность их индивидуального использования
         self.fig: Figure = plt.figure(figsize=(fig_width, fig_height))
-        self.ax: np.typing.NDArray[Axes] = self.fig.subplots(nrows=n_rows, ncols=n_cols, **ax_kwargs)
+        self.ax: Axes | np.typing.NDArray[Axes] = self.fig.subplots(nrows=n_rows, ncols=n_cols, **ax_kwargs)
 
         self._nrows = n_rows
         self._ncols = n_cols
 
-    def __del__(self):
-        try:
-            self.fig.clf()
-            plt.close()
-        except Exception:
-            pass
-
-    def save_figure(self, saving_path: str):
+    def save_figure(self, saving_path: str | Path):
         self.fig.savefig(saving_path)
 
     @staticmethod
@@ -87,6 +81,21 @@ class Canvas:
 
     def suptitle(self, text, **kwargs):
         self.fig.suptitle(text, **kwargs)
+
+    def _get_axes(self, row: int, col: int) -> Axes:
+        """Возвращает объект Axes для заданной позиции в сетке."""
+        if self._nrows == 1 and self._ncols == 1:
+            # единственная ось – возвращаем её
+            return cast(Axes, self.ax)
+        elif self._nrows == 1:
+            # только одна строка, колонки индексируются по col
+            return cast(Axes, self.ax[col])
+        elif self._ncols == 1:
+            # только одна колонка, строки индексируются по row
+            return cast(Axes, self.ax[row])
+        else:
+            # полноценная сетка
+            return cast(Axes, self.ax[row, col])
 
     def set_axis_titles(self, titles: str | list, **text_kwargs):
         for n_row in range(self._nrows):
@@ -120,24 +129,7 @@ class Canvas:
     def grid_all_axes(self, **kwargs):
         for n_row in range(self._nrows):
             for n_col in range(self._ncols):
-
-                # Если только один график
-                if (self._nrows == 1) and (self._ncols == 1):
-                    ax = cast(Axes, self.ax)
-
-                # Если только одна колонка графиков
-                elif self._ncols == 1:
-                    ax = cast(Axes, self.ax[n_row])
-
-                # Если только один ряд графиков
-                elif self._nrows == 1:
-                    ax = cast(Axes, self.ax[n_col])
-
-                # Если несколько рядов и колонок графиков
-                else:
-                    ax = cast(Axes, self.ax[n_row, n_col])
-
-                ax.grid(**kwargs)
+                self._get_axes(n_row, n_col).grid(**kwargs)
 
     def set_axis_labels(self,
                         x_label: str | list[str] | list[list[str]] = None,
@@ -146,10 +138,10 @@ class Canvas:
 
         for n_row in range(self._nrows):
             for n_col in range(self._ncols):
+                ax = self._get_axes(n_row, n_col)
 
                 # Если только один график
                 if (self._nrows == 1) and (self._ncols == 1):
-                    ax = cast(Axes, self.ax)
                     if x_label:
                         ax.set_xlabel(x_label, **text_kwargs)
                     if y_label:
@@ -157,7 +149,6 @@ class Canvas:
 
                 # Если только один ряд графиков
                 elif self._nrows == 1:
-                    ax = cast(Axes, self.ax[n_col])
                     if x_label:
                         ax.set_xlabel(x_label[n_col], **text_kwargs)
                     if y_label:
@@ -165,7 +156,6 @@ class Canvas:
 
                 # Если только одна колонка графиков
                 elif self._ncols == 1:
-                    ax = cast(Axes, self.ax[n_row])
                     if x_label:
                         # Если передали только одно значение x_label, то подпишем только нижнюю ось
                         if isinstance(x_label, str):
@@ -178,7 +168,6 @@ class Canvas:
 
                 # Если несколько рядов и колонок графиков
                 else:
-                    ax = cast(Axes, self.ax[n_row, n_col])
                     if x_label:
                         # Если передали для каждой колонки одну подпись к оси x, то подпишем только нижнюю ось в каждой колонке
                         if len(x_label) == self._ncols:
@@ -190,10 +179,10 @@ class Canvas:
                         ax.set_ylabel(y_label[n_row][n_col], **text_kwargs)
 
     def plot(self,
-             x_axis: np.typing.NDArray | np.typing.ArrayLike | list,
-             plot_data: np.typing.NDArray | np.typing.ArrayLike | list,
-             color_names: str | list = None,
-             label: str | list = None,
+             x_axis: np.typing.NDArray | list[np.typing.NDArray],
+             plot_data: np.typing.NDArray | list[np.typing.NDArray],
+             color_names: str | list[str] = None,
+             label: str | list[str] = None,
              **line_kwargs):
         """
         Метод для построения графиков с гибкой настройкой содержимого.
