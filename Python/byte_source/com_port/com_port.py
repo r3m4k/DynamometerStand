@@ -1,19 +1,19 @@
 # System imports
-import serial
+from serial import Serial,  SerialException, SerialTimeoutException
 
 # External imports
 
 # User imports
-from byte_source.bytes_source import BytesSource
 from utils import get_cache, save_cache, confirm_from_console
-from .utils import get_ComPorts
+from byte_source.bytes_source import BytesSource
+from byte_source.com_port import get_ComPorts, ComPortReadError
 
 
 #########################
 
 # Класс для работы с com портом
 class ComPort(BytesSource):
-    _port: serial.Serial     # Используемый com порт
+    _port: Serial     # Используемый com порт
 
     def __init__(self, port_name: str, baudrate: int):
         self._port_name: str = port_name                # Название используемого com порта (например, COM1)
@@ -23,7 +23,7 @@ class ComPort(BytesSource):
         """ Настройка порта """
         print('\nПодключение к порту...')
         try:
-            self._port = serial.Serial(port=self._port_name, baudrate=self._baudrate)
+            self._port = Serial(port=self._port_name, baudrate=self._baudrate)
             print('✅ Успешно')
         except Exception as err:
             print('❌ Ошибка подключения. Подробная информация:')
@@ -37,7 +37,13 @@ class ComPort(BytesSource):
             pass
 
     def read_byte(self) -> bytes:
-        return self._port.read(1)
+        try:
+            data = self._port.read(1)
+            if not data:  # таймаут, байт не прочитан
+                raise ComPortReadError("Таймаут при чтении байта из COM-порта")
+            return data
+        except (SerialException, SerialTimeoutException) as e:
+            raise ComPortReadError(f"Ошибка последовательного порта: {e}", original_exception=e)
 
 
 # Класс для настройки ComPort

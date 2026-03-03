@@ -1,10 +1,8 @@
 # System imports
-import struct
 
 # External imports
 
 # User imports
-from .data_description import HX711Data
 
 #############################################
 

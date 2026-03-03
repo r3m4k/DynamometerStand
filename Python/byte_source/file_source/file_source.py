@@ -5,7 +5,8 @@ import io
 # External imports
 
 # User imports
-from .bytes_source import BytesSource
+from byte_source import BytesSource
+from byte_source.file_source import FileReadError
 from utils import get_cache, save_cache, confirm_from_console
 
 #########################
@@ -24,7 +25,13 @@ class FileSource(BytesSource):
         self._bin_file.close()
 
     def read_byte(self) -> bytes:
-        return self._bin_file.read(1)
+        try:
+            data = self._bin_file.read(1)
+            if not data:
+                raise FileReadError("Достигнут конец файла")
+            return data
+        except OSError as e:
+            raise FileReadError(f"Ошибка чтения файла: {e}", original_exception=e)
 
 
 # Класс для настройки FileSource

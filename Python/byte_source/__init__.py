@@ -7,14 +7,15 @@ __author__ = 'Roman Romanovskiy'
 
 # --------------------------------------------------------
 
-from .bytes_source import BytesSource
-from .com_port import ComPortSetting
-from .file_source import FileSourceSetting
+from byte_source.bytes_source import BytesSource, ReadError
+from byte_source.com_port import ComPortSetting
+from byte_source.file_source import FileSourceSetting
 
 # --------------------------------------------------------
 
 __all__ = [
     'BytesSource',
+    'ReadError',
     'ComPortSetting',
     'FileSourceSetting',
 ]

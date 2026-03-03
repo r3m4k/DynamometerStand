@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Пакет для декодирования данных с АЦП, поступающих через COM-порт.
+"""Пакет для декодирования данных с АЦП.
 
 Пакет предоставляет набор классов для приёма байтового потока, выделения пакетов,
 проверки контрольной суммы и преобразования сырых данных в структурированные объекты
 (данные тензодатчиков HX711 или команды).
 
 Доступные модули и классы:
-    - decoder_protocol.HX711Protocol: Описание формата пакетов (константы, длины полей).
+    - decoder_protocol.DecoderProtocol: Описание формата пакетов (константы, длины полей).
     - hx711_decoder.HX711Decoder: Основной класс-декодер с конечным автоматом.
     - data_description.HX711Data: Класс для хранения распакованных данных датчика.
 
@@ -20,16 +20,17 @@ __author__ = 'Roman Romanovskiy'
 
 # --------------------------------------------------------
 
-from .decoder_protocol import HX711Protocol
-from .data_description import HX711Data
-from .hx711_decoder import HX711Decoder
+from decoding.decoder_protocol import DecoderProtocol
+from decoding.command import Command
+from decoding.hx711_decoding import HX711Decoder, HX711Data
 
 # --------------------------------------------------------
 
 __all__ = [
-    'HX711Protocol',
+    'DecoderProtocol',
+    'Command',
     'HX711Decoder',
-    'HX711Data',
+    'HX711Data'
 ]
 
 # --------------------------------------------------------
