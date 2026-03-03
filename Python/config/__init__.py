@@ -20,7 +20,7 @@ __author__ = 'Roman Romanovskiy'
 # --------------------------------------------------------
 
 from pathlib import Path
-from .config import AppConfig
+from config.app_config import AppConfig
 
 # Определяем путь к файлу конфигурации
 _config_path = Path(__file__).parent / "config" / "settings.json"
