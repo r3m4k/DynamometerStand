@@ -23,7 +23,7 @@ from pathlib import Path
 from config.app_config import AppConfig
 
 # Определяем путь к файлу конфигурации
-_config_path = Path(__file__).parent / "config" / "settings.json"
+_config_path = Path(__file__).parent / "settings.json"
 
 # Глобальный экземпляр конфигурации
 config = AppConfig.load(_config_path)

@@ -1,12 +1,12 @@
 # System imports
-from serial import Serial,  SerialException, SerialTimeoutException
+from serial import Serial, SerialException, SerialTimeoutException
 
 # External imports
 
 # User imports
 from utils import get_cache, save_cache, confirm_from_console
 from byte_source.bytes_source import BytesSource
-from byte_source.com_port import get_ComPorts, ComPortReadError
+from byte_source.com_port.com_port_error import ComPortReadError
 
 
 #########################

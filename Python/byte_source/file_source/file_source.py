@@ -14,7 +14,7 @@ from pathlib import Path
 
 # User imports
 from byte_source import BytesSource
-from byte_source.file_source import FileReadError
+from byte_source.file_source.file_source_error import FileReadError
 
 #########################
 

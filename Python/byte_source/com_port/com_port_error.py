@@ -3,7 +3,7 @@
 # External imports
 
 # User imports
-from byte_source.bytes_source import ReadError
+from byte_source.read_error import ReadError
 
 #########################
 

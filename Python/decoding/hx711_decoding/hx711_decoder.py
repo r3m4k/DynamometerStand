@@ -81,7 +81,7 @@ class HX711Decoder:
     @property
     def data_len(self) -> int:
         """Возвращает максимальное количество пакетов среди всех датчиков."""
-        return max(len(v) for v in self.received_data.values())
+        return max((len(v) for v in self.received_data.values()), default=0)
 
     def __str__(self):
         """Строковое представление состояния декодера.
@@ -93,8 +93,6 @@ class HX711Decoder:
             f'| Количество корректно принятых пакетов данных:     {self._num_correct_packages} из {self._num_correct_packages + self._num_wrong_packages + self._num_unknown_packages}\n'
             f'| Количество пакетов данных, полученных с ошибкой:  {self._num_wrong_packages} из {self._num_correct_packages + self._num_wrong_packages + self._num_unknown_packages}\n'
             f'| Количество пакетов с неизвестным форматом:        {self._num_unknown_packages} из {self._num_correct_packages + self._num_wrong_packages + self._num_unknown_packages}\n'
-            # f'| Полученные значения:\n'
-            # f'{pformat(self.received_data)}\n'
             f'| -----------------------------------------------\n'
             )
 

@@ -2,12 +2,16 @@
 import os
 from datetime import datetime
 from pathlib import Path
+from pprint import pprint
 
 # External imports
+import numpy as np
 
 # User imports
 from decoding import DecoderProtocol, HX711Decoder, HX711Data
-from byte_source import BytesSource, ReadError, ComPortSetting, FileSourceSetting
+from byte_source import BytesSource, ReadError
+from byte_source.com_port import ComPortSetting
+from byte_source.file_source import FileSourceSetting
 from plotting import Plotter, CanvasConfig, color_scheme
 from frequency_analysis import FrequencyAnalyser
 from utils import confirm_from_console
@@ -56,14 +60,66 @@ with bytes_source as bt_src:
         print('✅ Чтение данных завершено\n')
 
     except ReadError as err:
-        print(f'Ошибка чтения пакета #{decoder.data_len}\n'
-              f'Описание ошибки:\n {err}')
+        print(f'\nОшибка чтения пакета #{decoder.data_len}\n'
+              f'{err}\n')
         print(f'Проводить анализ прочитанных данных?')
 
         if not confirm_from_console():
             exit(1)
 
 print(decoder)
+
+# print('Полученные данные:\n')
+# pprint(decoder.received_data)
+
+#############################################
+# Построение графиков величин и их распределение
+#############################################
+
+SENSOR_1_ID = 1;    DATA_LEN_SENSOR_1 = len(decoder.received_data[SENSOR_1_ID])
+SENSOR_2_ID = 2;    DATA_LEN_SENSOR_2 = len(decoder.received_data[SENSOR_2_ID])
+
+canvas_config = CanvasConfig()
+
+canvas_config.n_rows = 2; canvas_config.n_cols = 2
+canvas_config.ax_kwargs['width_ratios'] = [3, 1]
+
+canvas_config.x_data = [
+    np.array([decoder.received_data[SENSOR_1_ID][i].time for i in range(DATA_LEN_SENSOR_1)]),
+    np.array([decoder.received_data[SENSOR_2_ID][i].time for i in range(DATA_LEN_SENSOR_2)])
+]
+
+adc_values = {
+    SENSOR_1_ID: np.array([decoder.received_data[SENSOR_1_ID][i].adc_value * int(decoder.received_data[SENSOR_1_ID][i].gain)
+                    for i in range(DATA_LEN_SENSOR_1)]),
+    SENSOR_2_ID: np.array([decoder.received_data[SENSOR_2_ID][i].adc_value * int(decoder.received_data[SENSOR_2_ID][i].gain)
+                    for i in range(DATA_LEN_SENSOR_2)])
+}
+
+canvas_config.y_data = np.array([adc_values[SENSOR_1_ID], adc_values[SENSOR_2_ID]])
+
+canvas_config.color_names = [color_scheme['RGB_classic']['X'],
+                             color_scheme['RGB_classic']['Y']]
+
+canvas_config.dark_color_names = [color_scheme['RGB_dark']['X'],
+                                  color_scheme['RGB_dark']['Y']]
+
+canvas_config.y_label = [f'HX711_{SENSOR_1_ID}', f'HX711_{SENSOR_2_ID}']
+
+canvas_config.annotation = [
+    f'Mean ADC_Sensor1 = {np.mean(adc_values[SENSOR_1_ID]).round(6)}',
+    f'Mean ADC_Sensor2 = {np.mean(adc_values[SENSOR_2_ID]).round(6)}'
+]
+
+plotter_ADC = Plotter(canvas_config)
+plotter_ADC.plotting_Ndim_static(dim=2)
+
+# -------------------------------------
+
+print('💾 Сохранение графиков...')
+
+plotter_ADC.save(f'{save_dir}/adc_values.png')
+
 
 #############################################
 # Сохранение данных в csv файл

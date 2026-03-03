@@ -40,7 +40,7 @@ class ComPortConfig(BaseModel):
     @field_validator('baudrate')
     @classmethod
     def _validate_baudrate(cls, v: int) -> int:
-        allowed = [9600, 57600, 115200, 230400, 460800, 921600]
+        allowed = [None, ] + [9600, 57600, 115200, 230400, 460800, 921600]
         if v not in allowed:
             raise ValueError(f'baudrate должен быть одним из {allowed}')
         return v

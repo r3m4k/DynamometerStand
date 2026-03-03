@@ -4,3 +4,7 @@ Embedded/Debug_Win/
 # Python ignores
 Python/.idea/
 Python/.venv/
+Python/**/__pycache__/
+Python/results/
+
+Python/config/settings.json
