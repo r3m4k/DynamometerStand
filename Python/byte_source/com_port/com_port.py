@@ -28,6 +28,7 @@ class ComPort(BytesSource):
         except Exception as err:
             print('❌ Ошибка подключения. Подробная информация:')
             print(err)
+            raise ComPortReadError(f"Ошибка последовательного порта: {err}", original_exception=err)
 
     def cleanup(self):
         """ Завершение работы порта """
@@ -42,5 +43,5 @@ class ComPort(BytesSource):
             if not data:  # таймаут, байт не прочитан
                 raise ComPortReadError("Таймаут при чтении байта из COM-порта")
             return data
-        except (SerialException, SerialTimeoutException) as e:
-            raise ComPortReadError(f"Ошибка последовательного порта: {e}", original_exception=e)
+        except (SerialException, SerialTimeoutException) as err:
+            raise ComPortReadError(f"Ошибка последовательного порта: {err}", original_exception=err)

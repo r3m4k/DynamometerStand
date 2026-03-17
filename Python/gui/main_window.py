@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
         self._start_button.clicked.connect(self._start_measuring)
         self._stop_button.clicked.connect(self._stop_measuring)
 
+        # -------------------------------------------------------------
         # Настройка виджетов для графического отображения данных АЦП
         pen_params: dict[int, dict[str, ...]] = {
             1: {'color': "#ff003b",
@@ -87,7 +88,7 @@ class MainWindow(QMainWindow):
             2: {'color': "#ff4400",
                 'width': 2.5}
         }
-        
+
         for sensor_id in self._plotters.keys():
             plotter = self._plotters[sensor_id]
             plotter.configure(
@@ -99,12 +100,14 @@ class MainWindow(QMainWindow):
                 symbol='o',
                 symbolSize=4
             )
+        # -------------------------------------------------------------
 
     def _check_UI(self) -> bool:
         return (isinstance(self._start_button, QPushButton) and
                 isinstance(self._stop_button, QPushButton) and
                 isinstance(self._msg_text_edit, QTextEdit))
 
+    # ========== Методы для обработки сигналов ==========
 
     def _start_measuring(self) -> None: ...
 
