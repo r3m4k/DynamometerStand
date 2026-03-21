@@ -3,7 +3,7 @@
 
 Содержит класс `ComPortReader`, который управляет фоновым потоком для
 непрерывного чтения байтов из COM-порта, их декодирования с помощью
-`HX711Decoder` и передачи полученных пакетов в главный поток через сигналы.
+`Decoder` и передачи полученных пакетов в главный поток через сигналы.
 """
 
 # System imports
@@ -15,7 +15,8 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 # User imports
 from byte_source.com_port import ComPort, ComPortReadError
 from decoding import DecoderProtocol
-from decoding.hx711_decoding import HX711Decoder, HX711Data
+from decoding.hx711_decoding import HX711Decoder as Decoder
+from decoding.hx711_decoding import HX711Data as DataType
 
 ##########################################################
 
@@ -27,12 +28,12 @@ class ComPortReader(QObject):
     Ошибки и завершение работы также транслируются сигналами.
 
     Сигналы:
-        data_received(HX711Data): Испускается при получении нового пакета данных.
+        data_received(DataType): Испускается при получении нового пакета данных.
         error_occurred(str): Испускается при возникновении ошибки чтения или декодирования.
         finished(): Испускается после полной остановки потока и очистки ресурсов.
     """
 
-    data_received = pyqtSignal(HX711Data)
+    data_received = pyqtSignal(DataType)
     error_occurred = pyqtSignal(str)
     finished = pyqtSignal()
 
@@ -42,12 +43,12 @@ class ComPortReader(QObject):
         """Внутренний класс, выполняющий чтение из порта в отдельном потоке.
 
         Сигналы:
-            data_received(HX711Data): Пробрасывается наружу.
+            data_received(DataType): Пробрасывается наружу.
             error_occurred(str): Пробрасывается наружу.
             finished(): Испускается при завершении работы (всегда).
         """
 
-        data_received = pyqtSignal(HX711Data)
+        data_received = pyqtSignal(DataType)
         error_occurred = pyqtSignal(str)
         finished = pyqtSignal()
 
@@ -60,7 +61,7 @@ class ComPortReader(QObject):
             """
             super().__init__()
             self._com_port: ComPort = port
-            self._decoder: DecoderProtocol[dict[int, list[HX711Data]]] = HX711Decoder()
+            self._decoder: DecoderProtocol[dict[int, list[DataType]]] = Decoder()
             self._reading_flag = False
 
         def run(self) -> None:

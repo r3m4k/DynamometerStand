@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # User imports
 from config.com_port_config import ComPortConfig
 from config.file_source_config import FileSourceConfig
+from config.calibration_config import CalibrationConfig
 
 #############################################
 
@@ -27,16 +28,15 @@ class AppConfig(BaseModel):
     Неизвестные поля в JSON-файле запрещены.
 
     Attributes:
+        calibration (CalibrationConfig): Настройки калибровки.
         com_port (ComPortConfig): Настройки COM-порта.
-            По умолчанию создаётся экземпляр ComPortConfig со значениями по умолчанию.
         file_source (FileSourceConfig): Настройки файлового источника.
-            По умолчанию создаётся экземпляр FileSourceConfig со значениями по умолчанию.
         save_dir (Path): Директория для сохранения результатов.
-            По умолчанию './results'.
     """
 
     model_config = ConfigDict(extra='forbid')
 
+    calibration: CalibrationConfig = Field(default_factory=CalibrationConfig, description="Настройки калибровки крутящего момента по кодам АЦП")
     com_port: ComPortConfig = Field(default_factory=ComPortConfig, description="Настройки COM-порта")
     file_source: FileSourceConfig = Field(default_factory=FileSourceConfig, description="Настройки файлового источника")
     save_dir: Path = Field(default_factory=lambda: Path("./results"), description="Директория для сохранения результатов")
