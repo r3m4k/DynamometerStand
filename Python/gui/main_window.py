@@ -13,9 +13,11 @@ import pyqtgraph as pg
 
 # User imports
 from gui.saving_path_settings import SavingPathSetting
-from gui.com_port_settings import ComPortSettings, RadioButtonsDict
+from gui.com_port_settings import ComPortSettings, ComPortError, RadioButtonsDict
+from gui.com_port_reader import ComPortReader
 from gui.plotting_widget import PlottingWidget
-
+from ADCAnalysis import TorqueCalculation, TorqueCalculationError
+from decoding.hx711_decoding import HX711Data
 
 ##########################################################
 
@@ -63,6 +65,10 @@ class MainWindow(QMainWindow):
         }
         # ------------------------------
 
+        self._com_port_reader: ComPortReader = ComPortReader()
+        self._torque_calculation: TorqueCalculation = TorqueCalculation()
+
+        # ------------------------------
         # Настроим интерфейс
         if not self._check_UI():
             QMessageBox.critical(self, "Ошибка", "Неправильно настроен main_window")
@@ -70,15 +76,20 @@ class MainWindow(QMainWindow):
             exit(10)
 
         self._init_UI()
+        # ------------------------------
 
     def closeEvent(self, event)-> None:
         """ Дополнительная логика перед закрытием окна """
         pass
 
     def _init_UI(self) -> None:
-        # Подключим нажатие кнопок к соответствующим функциям-обработчикам
+        # Подключим нажатие кнопок и другие сигналы к соответствующим функциям-обработчикам
         self._start_button.clicked.connect(self._start_measuring)
         self._stop_button.clicked.connect(self._stop_measuring)
+
+        self._com_port_reader.data_received.connect(self._calc_torque)
+        self._com_port_reader.finished.connect(self._unlock_input)
+        self._com_port_reader.error_occurred.connect(self._error_handler)
 
         # -------------------------------------------------------------
         # Настройка виджетов для графического отображения данных АЦП
@@ -107,8 +118,49 @@ class MainWindow(QMainWindow):
                 isinstance(self._stop_button, QPushButton) and
                 isinstance(self._msg_text_edit, QTextEdit))
 
-    # ========== Методы для обработки сигналов ==========
 
-    def _start_measuring(self) -> None: ...
+    # =============================================================
+    # =============== Методы для обработки сигналов ===============
+    # =============================================================
 
-    def _stop_measuring(self) -> None: ...
+    def _start_measuring(self) -> None:
+        try:
+            port_name = self._com_port_settings.get_port_name()
+            baudrate = self._com_port_settings.get_baudrate()
+
+            self._com_port_reader.configure_port(port_name, baudrate)
+            # self._com_port_reader.start_reading()
+
+            # self._start_button.setEnabled(False)
+
+        except ComPortError:
+            ...
+        except RuntimeError:
+            ...
+        except Exception:
+            ...
+
+    def _stop_measuring(self) -> None:
+        self._com_port_reader.stop_reading()
+
+    def _lock_input(self) -> None:
+        self._start_button.setEnabled(False)
+        self._com_port_settings.lock_input()
+
+    def _unlock_input(self) -> None:
+        self._start_button.setEnabled(True)
+        self._com_port_settings.unlock_input()
+
+    def _error_handler(self, error_info: str) -> None:
+        QMessageBox.critical(self, "Ошибка выполнения!", error_info)
+
+    def _calc_torque(self, adc_data: HX711Data) -> None:
+        try:
+            torque = self._torque_calculation.calc_torque(sensor_id=adc_data.id,
+                                                          adc_value=(adc_data.adc_value * int(adc_data.gain)))
+            self._plot_received_data(adc_data.id, adc_data.time, torque)
+        except TorqueCalculationError:
+            ...
+
+    def _plot_received_data(self, plotter_id: int, x_value: float, y_value: float):
+        self._plotters[plotter_id].append_data(x_value, y_value)

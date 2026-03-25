@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from config.com_port_config import ComPortConfig
 from config.file_source_config import FileSourceConfig
 from config.calibration_config import CalibrationConfig
+from config.logger_config import LoggerConfig
 
 #############################################
 
@@ -40,6 +41,7 @@ class AppConfig(BaseModel):
     com_port: ComPortConfig = Field(default_factory=ComPortConfig, description="Настройки COM-порта")
     file_source: FileSourceConfig = Field(default_factory=FileSourceConfig, description="Настройки файлового источника")
     save_dir: Path = Field(default_factory=lambda: Path("./results"), description="Директория для сохранения результатов")
+    logger_config: LoggerConfig = Field(default_factory=LoggerConfig, description="Настройки логгера")
 
     def __init__(self, **data):
         super().__init__(**data)

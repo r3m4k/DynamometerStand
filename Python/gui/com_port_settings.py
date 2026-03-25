@@ -144,6 +144,20 @@ class ComPortSettings(QObject):
             return  self._current_baudrate
         raise ComPortError("Не задана скорость работы порта!")
 
+    def lock_input(self) -> None:
+        """Блокирует все элементы управления настройками COM-порта."""
+        self._com_port_combo_box.setEnabled(False)
+        self._update_com_ports_button.setEnabled(False)
+        for btn in self._baudrate_group.buttons():
+            btn.setEnabled(False)
+
+    def unlock_input(self) -> None:
+        """Разблокирует все элементы управления настройками COM-порта."""
+        self._com_port_combo_box.setEnabled(True)
+        self._update_com_ports_button.setEnabled(True)
+        for btn in self._baudrate_group.buttons():
+            btn.setEnabled(True)
+
     def save_config(self) -> None:
         """Сохраняет текущие настройки порта и скорости в глобальный конфиг."""
 
