@@ -105,10 +105,10 @@ class ComPortReader(QObject):
             baudrate (int): Скорость работы порта.
 
         Raises:
-            RuntimeError: Если чтение уже запущено.
+            ComPortReadError: Если чтение уже запущено.
         """
         if self._worker_thread is not None and self._worker_thread.isRunning():
-            raise RuntimeError("Нельзя изменить порт во время чтения")
+            raise ComPortReadError("Нельзя изменить порт во время чтения")
         self._com_port = ComPort(port_name, baudrate)
 
     def start_reading(self) -> None:
@@ -117,13 +117,13 @@ class ComPortReader(QObject):
         Создаёт новый поток и воркер, перемещает воркер в поток, подключает сигналы и запускает поток.
 
         Raises:
-            RuntimeError: Если порт не был предварительно настроен через `configure_port`,
+            ComPortReadError: Если порт не был предварительно настроен через `configure_port`,
                           или чтение порта уже запущено.
         """
         if self._com_port is None:
-            raise RuntimeError('Перед запуском необходимо выполнить конфигурацию порта!')
+            raise ComPortReadError('Перед запуском необходимо выполнить конфигурацию порта!')
         if self._worker_thread and self._worker_thread.isRunning():
-            raise RuntimeError('Чтение порта уже запущено в другом потоке!')
+            raise ComPortReadError('Чтение порта уже запущено в другом потоке!')
 
         self._worker_thread = QThread()
         self._worker = self._ComPortReaderWorker(self._com_port)
@@ -139,6 +139,7 @@ class ComPortReader(QObject):
         self._worker.finished.connect(self._worker_thread.quit)
         self._worker.finished.connect(self._worker.deleteLater)
 
+        # Запустим поток для чтения com порта
         self._worker_thread.start()
 
     def stop_reading(self) -> None:

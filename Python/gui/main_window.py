@@ -12,9 +12,10 @@ from PyQt5.uic import loadUi
 import pyqtgraph as pg
 
 # User imports
+from app_logger import app_logger
 from gui.saving_path_settings import SavingPathSetting
-from gui.com_port_settings import ComPortSettings, ComPortError, RadioButtonsDict
-from gui.com_port_reader import ComPortReader
+from gui.com_port_settings import ComPortSettings, ComPortSettingsError, RadioButtonsDict
+from gui.com_port_reader import ComPortReader, ComPortReadError
 from gui.plotting_widget import PlottingWidget
 from ADCAnalysis import TorqueCalculation, TorqueCalculationError
 from decoding.hx711_decoding import HX711Data
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
         # ------------------------------
         # Настроим интерфейс
         if not self._check_UI():
+            app_logger.error("Неправильно настроен main_window!")
             QMessageBox.critical(self, "Ошибка", "Неправильно настроен main_window")
             QApplication.quit()
             exit(10)
@@ -125,20 +127,37 @@ class MainWindow(QMainWindow):
 
     def _start_measuring(self) -> None:
         try:
+            app_logger.debug('Получение данных порта и скорости его работы...')
+
+            # Сконфигурируем порт
             port_name = self._com_port_settings.get_port_name()
             baudrate = self._com_port_settings.get_baudrate()
-
             self._com_port_reader.configure_port(port_name, baudrate)
-            # self._com_port_reader.start_reading()
 
-            # self._start_button.setEnabled(False)
+            # Запустим чтение данных из порта
+            self._com_port_reader.start_reading()
+            app_logger.info(f'Начало сбора данных. Выбран порт {port_name}. Скорость работы порта - {baudrate}')
+            self._msg_text_edit.setText(f'Начало сбора данных.\nВыбран порт {port_name}.\nСкорость работы порта - {baudrate}\n\n')
 
-        except ComPortError:
-            ...
-        except RuntimeError:
-            ...
-        except Exception:
-            ...
+            # Заблокируем изменение параметров запуска и сохраним конфиг
+            self._lock_input()
+            self._com_port_settings.save_config()
+            self._saving_path_setting.save_config()
+
+        # Ошибка конфигурации порта
+        except ComPortSettingsError as err:
+            app_logger.error(f'Вызвано исключение при настройке COM порта:\n{err}')
+            QMessageBox.warning(self, 'Ошибка конфигурации порта', f'{err}')
+
+        # Ошибка чтения порта
+        except ComPortReadError as err:
+            app_logger.error(f'Вызвано исключение при сборе данных:\n{err}')
+            QMessageBox.warning(self, 'Ошибка чтения порта', f'{err}')
+
+        # Неучтённое исключение
+        except Exception as err:
+            app_logger.exception('Получено неучтённое исключение!')
+            QMessageBox.critical(self, 'Неучтённое исключение!', f'{err}')
 
     def _stop_measuring(self) -> None:
         self._com_port_reader.stop_reading()
@@ -146,13 +165,20 @@ class MainWindow(QMainWindow):
     def _lock_input(self) -> None:
         self._start_button.setEnabled(False)
         self._com_port_settings.lock_input()
+        self._saving_path_setting.lock_input()
 
     def _unlock_input(self) -> None:
         self._start_button.setEnabled(True)
         self._com_port_settings.unlock_input()
+        self._saving_path_setting.unlock_input()
 
     def _error_handler(self, error_info: str) -> None:
         QMessageBox.critical(self, "Ошибка выполнения!", error_info)
+
+    def _finishing_reading_data(self) -> None:
+        app_logger.info('Завершение чтения данных')
+        self._msg_text_edit.setText('Завершение чтения данных')
+        QMessageBox.information(self, "Уведомление", "Чтение данных завершено")
 
     def _calc_torque(self, adc_data: HX711Data) -> None:
         try:

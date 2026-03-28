@@ -25,8 +25,6 @@ class LoggerConfig(BaseModel):
         log_format (str): Строка форматирования логов.
         date_format (str): Формат даты в логах.
         log_level (int): Уровень логирования (одно из значений logging.DEBUG, INFO и т.д.).
-        max_bytes (int): Максимальный размер файла в байтах до ротации.
-        backup_count (int): Количество сохраняемых архивов.
     """
 
     log_dir: Path = Field(Path(".logs"), description="Директория для логов")
@@ -37,8 +35,6 @@ class LoggerConfig(BaseModel):
     )
     date_format: str = Field("%Y-%m-%d %H:%M:%S", description="Формат даты")
     log_level: int = Field(logging.DEBUG, description="Уровень логирования")
-    max_bytes: int = Field(10 * 1024 * 1024, description="Максимальный размер файла (в байтах) перед ротацией")
-    backup_count: int = Field(5, ge=0, description="Количество сохраняемых архивов")
 
     @field_validator('log_level')
     @classmethod

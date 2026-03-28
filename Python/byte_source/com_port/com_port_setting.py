@@ -5,7 +5,7 @@ from serial import Serial,  SerialException, SerialTimeoutException
 
 # User imports
 from config import config
-from utils import get_cache, save_cache, confirm_from_console
+from utils import confirm_from_console
 from byte_source.bytes_source import BytesSource
 from byte_source.com_port import get_ComPorts, ComPort
 

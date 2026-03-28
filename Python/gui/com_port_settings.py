@@ -23,7 +23,7 @@ from byte_source.com_port import get_ComPorts
 
 ##########################################################
 
-class ComPortError(Exception):
+class ComPortSettingsError(Exception):
     """Исключение, возникающее при неправильной настройке COM порта."""
     pass
 
@@ -132,7 +132,7 @@ class ComPortSettings(QObject):
         """
         if self._com_port_combo_box.currentText() and self._com_port_combo_box.currentText() != '-----':
             return self._com_port_combo_box.currentText()
-        raise ComPortError("Выберите порт для подключения!")
+        raise ComPortSettingsError("Выберите порт для подключения!")
 
     def get_baudrate(self) -> int:
         """Возвращает выбранную скорость.
@@ -142,7 +142,7 @@ class ComPortSettings(QObject):
         """
         if self._current_baudrate:
             return  self._current_baudrate
-        raise ComPortError("Не задана скорость работы порта!")
+        raise ComPortSettingsError("Не задана скорость работы порта!")
 
     def lock_input(self) -> None:
         """Блокирует все элементы управления настройками COM-порта."""
@@ -223,7 +223,7 @@ class ComPortSettings(QObject):
 
     def _show_port_info(self) -> None:
         """Отображает диалоговое окно с информацией о выбранном порте."""
-        QMessageBox.information(self._com_port_info_button, "Информация о выбранном порте",
+        QMessageBox.information(None, "Информация о выбранном порте",
                                 f"Выбранный порт: {self._current_port}\n"
                                 f"| desc: {self._com_ports[self._current_port]['desc']}\n"
                                 f"| hwid: {self._com_ports[self._current_port]['hwid']}\n")

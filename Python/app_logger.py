@@ -29,7 +29,7 @@ class AppLogger:
         self._file_handler: Optional[logging.Handler] = None
 
         # Создаём корневой логгер
-        self._logger = logging.getLogger()
+        self._logger = logging.getLogger('DynamometerStand')
         self._logger.setLevel(config.logger_config.log_level)
 
         # Настраиваем файловый обработчик по умолчанию
@@ -46,6 +46,14 @@ class AppLogger:
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / config.logger_config.log_filename
 
+        # Если файл уже существует, переименовываем его в .bkp
+        if log_file.exists():
+            # Формируем имя бэкапа: исходное имя файла + '.bkp'
+            backup_file = log_dir / (log_file.name + '.bkp')
+            if backup_file.exists():
+                backup_file.unlink()   # удаляем старый бэкап
+            log_file.rename(backup_file)
+
         log_format = logging.Formatter(
             config.logger_config.log_format,
             config.logger_config.date_format
@@ -57,11 +65,8 @@ class AppLogger:
             self._file_handler.close()
 
         # Создаём новый
-        self._file_handler = logging.handlers.RotatingFileHandler(
-            log_file,
-            maxBytes=config.logger_config.max_bytes,
-            backupCount=config.logger_config.backup_count,
-            encoding='utf-8'
+        self._file_handler = logging.FileHandler(
+            log_file, mode='w', encoding='utf-8'
         )
         self._file_handler.setLevel(config.logger_config.log_level)
         self._file_handler.setFormatter(log_format)
