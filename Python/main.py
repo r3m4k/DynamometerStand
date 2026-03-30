@@ -38,6 +38,7 @@ if __name__ == "__main__":
         app = MyApplication(sys.argv)
         app_logger.debug('Инициализация main_window')
         window = MainWindow()
+        app.setQuitOnLastWindowClosed(False)
         app_logger.debug('Запуск main window')
         window.show()
         sys.exit(app.exec_())

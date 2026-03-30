@@ -2,7 +2,7 @@
 from pathlib import Path
 
 # External imports
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QMainWindow, QTextEdit, QToolButton,
     QPushButton, QApplication, QMessageBox,
@@ -82,7 +82,18 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event)-> None:
         """ Дополнительная логика перед закрытием окна """
-        pass
+        self.hide()
+        event.accept()
+        self._stop_measuring()
+        QTimer.singleShot(1000, self._quit_app)
+
+    def _quit_app(self) -> None:
+        """ Метод для завершения работы программы """
+        if not self._com_port_reader.is_active:
+            app_logger.info('Корректное завершение работы приложения')
+        else:
+            app_logger.warning('Принудительное завершение приложения до полной остановки ComPortReader')
+        QApplication.quit()
 
     def _init_UI(self) -> None:
         # Подключим нажатие кнопок и другие сигналы к соответствующим функциям-обработчикам

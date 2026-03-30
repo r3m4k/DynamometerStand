@@ -94,6 +94,10 @@ class ComPortReader(QObject):
         self._worker: Optional[ComPortReader._ComPortReaderWorker] = None
         self._com_port: Optional[ComPort] = None
 
+    @property
+    def is_active(self):
+        return self._worker is not None
+
     def configure_port(self, port_name: str, baudrate: int) -> None:
         """Сохраняет параметры порта для последующего использования.
 
