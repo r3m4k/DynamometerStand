@@ -13,6 +13,7 @@ from typing import Optional
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 # User imports
+from app_logger import app_logger
 from byte_source.com_port import ComPort, ComPortReadError
 from decoding import DecoderProtocol
 from decoding.hx711_decoding import HX711Decoder as Decoder
@@ -113,7 +114,7 @@ class ComPortReader(QObject):
         """
         if self._worker_thread is not None and self._worker_thread.isRunning():
             raise ComPortReadError("Нельзя изменить порт во время чтения")
-        self._com_port = ComPort(port_name, baudrate)
+        self._com_port = ComPort(port_name, baudrate, app_logger.info)
 
     def start_reading(self) -> None:
         """Запускает фоновое чтение данных из порта.
