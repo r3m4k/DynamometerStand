@@ -243,6 +243,9 @@ int main()
             }
 
             if (hx711_reading_flag){
+                // Переключим светодиод для индикации работы
+                leds.ChangeLedStatus(LED8);
+
                 // Считаем значения АЦП и отправим пакеты данных
                 read_all_hx711();
                 send_all_hx711_packages();
