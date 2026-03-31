@@ -19,6 +19,7 @@ from config.com_port_config import ComPortConfig
 from config.file_source_config import FileSourceConfig
 from config.calibration_config import CalibrationConfig
 from config.logger_config import LoggerConfig
+from config.main_window_config import MainWindowConfig
 
 #############################################
 
@@ -42,6 +43,7 @@ class AppConfig(BaseModel):
     file_source: FileSourceConfig = Field(default_factory=FileSourceConfig, description="Настройки файлового источника")
     save_dir: Path = Field(default_factory=lambda: Path("./results"), description="Директория для сохранения результатов")
     logger_config: LoggerConfig = Field(default_factory=LoggerConfig, description="Настройки логгера")
+    main_window_config: MainWindowConfig = Field(default_factory=MainWindowConfig, description="Настройки главного окна GUI")
 
     def __init__(self, **data):
         super().__init__(**data)
