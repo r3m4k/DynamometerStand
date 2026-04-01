@@ -110,7 +110,8 @@ namespace Packages{
          * @details Копирует текущие значения из внешних объектов во внутреннюю структуру.
          */
         void UpdateData() {
-            package_body.adc_value = *adc_value_ptr;
+            // package_body.adc_value = *adc_value_ptr;
+            package_body.adc_value = 112;
             package_body.gain = static_cast<uint8_t>(*gain_ptr);
         }
 

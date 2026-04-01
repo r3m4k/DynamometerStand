@@ -7,15 +7,18 @@ __author__ = 'Roman Romanovskiy'
 
 # --------------------------------------------------------
 
-from .utils import get_ComPorts
-from .com_port import ComPort, ComPortSetting
+from byte_source.com_port.utils import get_ComPorts
+from byte_source.com_port.com_port import ComPort
+from byte_source.com_port.com_port_error import ComPortReadError
+from byte_source.com_port.com_port_setting import ComPortSetting
 
 # --------------------------------------------------------
 
 __all__ = [
     'get_ComPorts',
     'ComPort',
-    'ComPortSetting'
+    'ComPortSetting',
+    'ComPortReadError'
 ]
 
 # --------------------------------------------------------

@@ -14,14 +14,15 @@
 # System imports
 from enum import Enum
 from typing import Callable
+from pprint import pformat
+from pathlib import Path
 
 # External imports
 
 # User imports
-from utils import float_to_csv_format
-from .data_description import HX711Data, HX711DataIndexes
-from .command import Command
-from .utils import bytes_to_uint32, bytes_to_int32, bytes_to_uint8
+from decoding.command import Command
+from decoding.hx711_decoding.hx711_data_description import HX711Data, HX711DataIndexes, HX711Gain
+from decoding.utils import bytes_to_uint32, bytes_to_int32, bytes_to_uint8
 
 #############################################
 
@@ -57,7 +58,7 @@ class HX711Decoder:
         input_command (list[Command]): Список принятых команд (объекты Command).
     """
 
-    _header = [b'\xfb', b'\x01']    # Заголовок посылки (2 байта)
+    _header = [b'\xc8', b'\x8c']    # Заголовок посылки (2 байта)
 
     def __init__(self):
         """Инициализирует декодер, сбрасывая все внутренние состояния."""
@@ -78,26 +79,56 @@ class HX711Decoder:
         self._num_unknown_packages = 0      # Количество пакетов с неизвестным форматом
 
     @property
-    def data_len(self) -> dict[int, int]:
-        """Возвращает словарь с количеством принятых пакетов для каждого датчика.
-
-        Returns:
-            dict[int, int]: Словарь вида {id_датчика: количество_пакетов}.
-        """
-        return {key: len(self.received_data[key]) for key in self.received_data.keys()}
+    def data_len(self) -> int:
+        """Возвращает максимальное количество пакетов среди всех датчиков."""
+        return max((len(v) for v in self.received_data.values()), default=0)
 
     def __str__(self):
-        # TODO: реализовать строковое представление декодера
-        pass
+        """Строковое представление состояния декодера.
+        Returns:
+            str: Многострочная строка с информацией о декодере.
+        """
+        return (
+            f'🔍 Информация о {self.__class__.__name__}:\n'
+            f'| Количество корректно принятых пакетов данных:     {self._num_correct_packages} из {self._num_correct_packages + self._num_wrong_packages + self._num_unknown_packages}\n'
+            f'| Количество пакетов данных, полученных с ошибкой:  {self._num_wrong_packages} из {self._num_correct_packages + self._num_wrong_packages + self._num_unknown_packages}\n'
+            f'| Количество пакетов с неизвестным форматом:        {self._num_unknown_packages} из {self._num_correct_packages + self._num_wrong_packages + self._num_unknown_packages}\n'
+            f'| -----------------------------------------------\n'
+            )
 
-    def save_received_data(self, filename: str) -> None:
-        """Сохраняет все накопленные данные в файл.
+    def save_received_data(self, filepath: str | Path, sep: str = ',') -> None:
+        """Сохраняет все накопленные данные декодера в файл.
 
         Args:
-            filename (str): Имя файла для сохранения.
+            filepath (str | Path): Путь к файлу сохранения.
+            sep (str, optional): Разделитель полей в выходном файле. По умолчанию запятая.
+
+        Формат файла:
+            Первая строка — заголовок: SensorId{sep}Time{sep}ADCValue{sep}Gain
+            Последующие строки: для каждого временного индекса (начиная с 0)
+            последовательно выводятся данные всех датчиков в порядке возрастания
+            их идентификаторов. Если у какого-то датчика на текущем индексе нет
+            данных, строка для него пропускается.
         """
-        # TODO: реализовать сохранение данных
-        pass
+        if not self.received_data:
+            raise ValueError("Нет данных для сохранения. Словарь received_data пуст.")
+
+        # Преобразуем строку в объект Path
+        file_path = Path(filepath)
+        # Создаём родительскую директорию, если её нет
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Открываем файл на запись (используем явно путь как строку или объект Path)
+        with open(file_path, 'w', encoding='utf-8') as file:
+            file.write(f'SensorId{sep}Time{sep}ADCValue{sep}Gain\n')
+
+            for index in range(self.data_len):
+                for sensor_id in sorted(self.received_data.keys()):
+                    try:
+                        data = self.received_data[sensor_id][index]
+                        file.write(f"{sensor_id}{sep}{data.time}{sep}{data.adc_value}{sep}{data.gain.to_string()}\n")
+                    except IndexError:
+                        pass
 
     def byte_processing(self, bt: bytes) -> None:
         """Обрабатывает один входящий байт, продвигая конечный автомат.
@@ -182,7 +213,7 @@ class HX711Decoder:
             time=bytes_to_uint32(byte_list[HX711DataIndexes.time_index: HX711DataIndexes.time_index + 4]),
             id=bytes_to_uint8(byte_list[HX711DataIndexes.id_index: HX711DataIndexes.id_index + 1]),
             adc_value=bytes_to_int32(byte_list[HX711DataIndexes.adc_index: HX711DataIndexes.adc_index + 4]),
-            gain=bytes_to_uint8(byte_list[HX711DataIndexes.gain_index: HX711DataIndexes.gain_index + 1]),
+            gain=HX711Gain(bytes_to_uint8(byte_list[HX711DataIndexes.gain_index: HX711DataIndexes.gain_index + 1])),
         )
         # Добавляем пакет в историю для соответствующего ID
         if received_package.id not in self.received_data:

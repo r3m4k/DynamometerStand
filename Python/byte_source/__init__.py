@@ -1,5 +1,16 @@
 """
-Пакет для реализации источников данных
+Пакет для реализации различных источников байтовых данных.
+
+Предоставляет абстрактный базовый класс `BytesSource`, определяющий интерфейс
+для чтения байтов, а также конкретные реализации для COM-порта и файла.
+Кроме того, содержит базовое исключение `ReadError` для унифицированной обработки
+ошибок чтения, и классы настройки источников данных (`ComPortSetting`, `FileSourceSetting`).
+
+Экспортируемые объекты:
+    BytesSource — абстрактный базовый класс для источников байтов.
+    ReadError — базовое исключение для ошибок чтения.
+    ComPortSetting — класс для интерактивной настройки COM-порта и сохранения в конфиг.
+    FileSourceSetting — класс для интерактивной настройки файлового источника и сохранения в конфиг.
 """
 
 __version__ = '1.0.0'
@@ -7,16 +18,14 @@ __author__ = 'Roman Romanovskiy'
 
 # --------------------------------------------------------
 
-from .bytes_source import BytesSource
-from .com_port import ComPortSetting
-from .file_source import FileSourceSetting
+from byte_source.bytes_source import BytesSource
+from byte_source.read_error import ReadError
 
 # --------------------------------------------------------
 
 __all__ = [
     'BytesSource',
-    'ComPortSetting',
-    'FileSourceSetting',
+    'ReadError',
 ]
 
 # --------------------------------------------------------
