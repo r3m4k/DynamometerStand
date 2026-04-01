@@ -62,8 +62,8 @@ class StaticQueue{
 
 public:
 
-    StaticQueue = default;
-    ~StaticQueue = default;
+    StaticQueue() = default;
+    ~StaticQueue() = default;
 
     void put(const T& new_item){
         if (item_num < N){

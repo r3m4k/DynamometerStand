@@ -222,6 +222,7 @@ int main()
     {
        
     #if ENABLE_COMMAND_PROCESSING
+        // Выполним поступившую команду при её наличии
         if (!command_manager.command_queue.is_empty()){
             auto command = command_manager.command_queue.get();
             command.execute();
@@ -313,6 +314,9 @@ void MeasureStage_init(){
 // Функция для исполнения MeasureStage 
 void MeasureStage_execute(){
     if (hx711_reading_flag){
+        // Переключим светодиод для индикации работы
+        leds.ChangeLedStatus(LED8);
+
         // Считаем значения АЦП и отправим пакеты данных
         read_all_hx711();
         send_all_hx711_packages();

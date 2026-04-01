@@ -140,7 +140,7 @@ public:
  */
 
 //! Количество поддерживаемых команд
-inline constexpr uint8_t num_of_supported_commands = 1;
+inline constexpr uint8_t num_of_supported_commands = 3;
 
 /*!
  * @var Restart
