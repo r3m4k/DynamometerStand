@@ -42,7 +42,7 @@ __IO uint8_t buttonState;
 // ===============================================================================
 
 /* Defines -------------------------------------------------------------------*/
-#define ENABLE_INTERFACE_COMMANDS   0   // Дефайн для включения обработки поступивших
+#define ENABLE_COMMAND_PROCESSING   1   // Дефайн для включения обработки поступивших
                                         // команд (0 - выкл / 1 - вкл)
 #define IST_VECTORS_NUM     98          // Количество векторов прерываний
 #define MessageLen          8           // Длина отправляемых информационных сообщений
@@ -63,15 +63,7 @@ _user_pHandler _user_vector_table[IST_VECTORS_NUM] = {0};
 
 // Необходимые счётчики и флаги
 uint32_t tick_counter = 0;
-bool hx711_reading_flag = false;
-
-// Стадии программы
-enum class ProgramStages{
-    BeforeBeginning,    // Фиктивная стадия программы (необходима для индикации первой смены стадии программы)
-    FooStage,           // Ожидание команды для начала измерения 
-    Measuring,          // Сбор и отправка данных с частотой 10 Гц
-};
-ProgramStages stage = ProgramStages::Measuring;
+volatile bool hx711_reading_flag = false;
 
 // Светодиоды на плате
 STM_CppLib::Leds leds;
@@ -82,8 +74,8 @@ STM_CppLib::Commands::CommandManager command_manager;
 #endif  /* ENABLE_COMMAND_PROCESSING */
 
 // Интерфейс связи
-// STM_CppLib::UsbPort::UsbPort com_port;
-STM_CppLib::USARTx com_port;
+STM_CppLib::UsbPort::UsbPort com_port;
+// STM_CppLib::USARTx com_port;
 
 // Используемые таймеры -------------------------------------------------------
 
@@ -149,6 +141,37 @@ std::array<Packages::HX711Package, HX711num> hx711_package_array = {
     Packages::HX711Package(2, &(std::get_if<1>(&hx711_array[1])->adc_value), &(std::get_if<1>(&hx711_array[1])->gain)),
 };
 
+/* ****************************************************************************
+ * Описание стадий программы
+ *************************************************************************** */
+
+class ProgramStage{
+    CommandHandlerFunc init_func;
+    CommandHandlerFunc execute_func;
+    
+public:
+    bool is_init = false;
+
+    ProgramStage(CommandHandlerFunc _init_func, CommandHandlerFunc _execute_func):
+        init_func(_init_func), execute_func(_execute_func) {}
+
+    void init(){
+        init_func();
+        is_init = true;
+    }
+
+    void execute(){
+        execute_func();
+    }
+};
+
+// Очередь стадий программ (используется для смены стадий программ)
+StaticQueue<ProgramStage*, 2> program_stage_queue;
+
+// Поддерживаемые стадии программы
+ProgramStage FooStage(FooStage_init, FooStage_execute);
+ProgramStage MeasureStage(MeasureStage_init, MeasureStage_execute);
+
 // -------------------------------------------------------------------------------
 
 
@@ -190,8 +213,8 @@ int main()
 
     // ---------------------------------------------------------------------------
 
-    ProgramStages previous_stage = ProgramStages::BeforeBeginning;
-
+    program_stage_queue.put(&FooStage);
+    ProgramStage* current_stage_ptr = nullptr;
 
     // ---------------------------------------------------------------------------
     // Основной цикл программы
@@ -199,60 +222,34 @@ int main()
     {
        
     #if ENABLE_COMMAND_PROCESSING
+        // Выполним поступившую команду при её наличии
         if (!command_manager.command_queue.is_empty()){
             auto command = command_manager.command_queue.get();
             command.execute();
         }
     #endif
 
+        // Сменим current_stage_ptr, если есть элементы в очереди program_stage_queue
+        if(!program_stage_queue.is_empty()){
+            current_stage_ptr = program_stage_queue.get();
+        }
+
+        // Если current_stage_ptr == nullptr, то остановим итерацию цикла 
+        if (!current_stage_ptr){
+            continue;
+        }
+
         /* ***********************************************************************
         ШАБЛОН ОТРАБОТКИ СТАДИИ ПРОГРАММЫ:
-        Каждая стадия (stage) отрабатывается по единому принципу:
+        Каждая стадия (ProgramStage) отрабатывается по единому принципу:
         1. ИНИЦИАЛИЗАЦИЯ СТАДИИ (однократное выполнение при входе в стадию)
         2. ЦИКЛИЧЕСКОЕ ВЫПОЛНЕНИЕ ОСНОВНОЙ ЛОГИКИ СТАДИИ
         *********************************************************************** */
 
-        switch (stage)
-        {
-        case ProgramStages::FooStage:
-            if (previous_stage != ProgramStages::FooStage){
-                previous_stage = ProgramStages::FooStage;
-                // Выключим все таймеры
-                timer3.Stop();
-                timer3.ResetCounter();
-                timer4.Stop();
-                timer4.ResetCounter();
-                // Включим все светодиоды
-                leds.LedsOn();
-            }
-            break;
-            
-        case ProgramStages::Measuring:
-            if (previous_stage != ProgramStages::Measuring){
-                previous_stage = ProgramStages::Measuring;
-                tick_counter = 0;
-                leds.LedsOff();
-
-                // Запустим таймер сбора данных
-                timer3.ResetCounter();
-                timer3.Start();
-
-                // Запустим таймер индикации работы
-                timer4.ResetCounter();
-                timer4.Start();
-            }
-
-            if (hx711_reading_flag){
-                // Считаем значения АЦП и отправим пакеты данных
-                read_all_hx711();
-                send_all_hx711_packages();
-
-                // Сбросим флаг
-                hx711_reading_flag = false;
-            }
-
-            break;
+        if (!current_stage_ptr->is_init){
+            current_stage_ptr->init();
         }
+        current_stage_ptr->execute();        
     }
 }
 
@@ -277,6 +274,56 @@ void InitAll(){
     // Настройка таймера для мерцания светодиодами с периодом счёта в 2 с
     uint32_t tim4_period = 20000 - 1;
     timer4.Init(tim4_period);
+}
+
+// -------------------------------------------------------------------------------
+// Функции для отработки стадий программы
+// -------------------------------------------------------------------------------
+
+// Функция для инициализации FooStage
+void FooStage_init(){
+    // Остановим все таймеры
+    timer3.Stop();
+    timer3.ResetCounter();
+    timer4.Stop();
+    timer4.ResetCounter();
+    
+    // Включим все светодиоды
+    leds.LedsOn();
+}
+
+// Функция для исполнения FooStage 
+void FooStage_execute(){
+    __NOP();
+}
+
+// Функция для инициализации MeasureStage
+void MeasureStage_init(){
+    tick_counter = 0;
+    leds.LedsOff();
+
+    // Запустим таймер сбора данных
+    timer3.ResetCounter();
+    timer3.Start();
+
+    // Запустим таймер индикации работы
+    timer4.ResetCounter();
+    timer4.Start();
+}
+
+// Функция для исполнения MeasureStage 
+void MeasureStage_execute(){
+    if (hx711_reading_flag){
+        // Переключим светодиод для индикации работы
+        leds.ChangeLedStatus(LED8);
+
+        // Считаем значения АЦП и отправим пакеты данных
+        read_all_hx711();
+        send_all_hx711_packages();
+
+        // Сбросим флаг
+        hx711_reading_flag = false;
+    }
 }
 
 
@@ -339,9 +386,19 @@ void USART1_IRQHandler(void)
     USART_ClearITPendingBit(USART1, USART_IT_ORE);
 }
 
-// Функции для обработки поступивших команд
+// Функции для перезагрузки МК
 void restart(){
     NVIC_SystemReset();
+}
+
+// Функция для добавления FooStage в очередь program_stage_queue
+void set_FooStage(){
+    program_stage_queue.put(&FooStage);
+}
+
+// Функция для добавления MeasureStage в очередь program_stage_queue
+void set_MeasureStage(){
+    program_stage_queue.put(&MeasureStage);
 }
 
 
