@@ -23,7 +23,7 @@
 #include "StaticQueue.hpp"
 
 /* Defines -------------------------------------------------------------------*/
-#define CommandLength   8   // Длина массива для кодировки команды
+#define CommandLength   6   // Длина массива для кодировки команды
 
 /* Using  --------------------------------------------------------------------*/
 using CommandHandlerFunc = void(*)(void);
@@ -146,12 +146,34 @@ inline constexpr uint8_t num_of_supported_commands = 1;
  * @var Restart
  * @brief Команда перезагрузки микроконтроллера.
  * 
- * Код команды: {0x7e, 0xe7, 0xff, 0xff, 0x00, 0x63, 0x00, 0x00}
+ * Код команды: {0xc8, 0x8c, 0xff, 0xff, 0x00, 0x63, 0x00, 0x00}
  * Обработчик: restart()
  */
 inline constexpr uint8_t Restart_Code[CommandLength] = 
-        {0x7e, 0xe7, 0xff, 0xff, 0x00, 0x63, 0x00, 0x00};
+        {0xc8, 0x8c, 0xff, 0xff, 0x00, 0x00};
 inline Command Restart(Restart_Code, restart);
+
+/*!
+ * @var Set_FooStage
+ * @brief Команда перезагрузки микроконтроллера.
+ * 
+ * Код команды: {0xc8, 0x8c, 0xff, 0xff, 0x00, 0x63, 0x00, 0x00}
+ * Обработчик: restart()
+ */
+inline constexpr uint8_t Set_FooStage_Code[CommandLength] = 
+        {0xc8, 0x8c, 0xff, 0xaa, 0x01, 0x00};
+inline Command Set_FooStage(Set_FooStage_Code, set_FooStage);
+
+/*!
+ * @var Set_MeasureStage
+ * @brief Команда перезагрузки микроконтроллера.
+ * 
+ * Код команды: {0xc8, 0x8c, 0xff, 0xff, 0x00, 0x63, 0x00, 0x00}
+ * Обработчик: restart()
+ */
+inline constexpr uint8_t Set_MeasureStage_Code[CommandLength] = 
+        {0xc8, 0x8c, 0xff, 0xaa, 0x02, 0x00};
+inline Command Set_MeasureStage(Set_MeasureStage_Code, set_MeasureStage);
 
 /** @} */ // конец группы SupportedCommands
 
@@ -169,6 +191,8 @@ private:
     // Массив поддерживаемых команд
     inline static Command supported_commands[num_of_supported_commands] = {
         Restart,
+        Set_FooStage,
+        Set_MeasureStage,
     };
 
 public:

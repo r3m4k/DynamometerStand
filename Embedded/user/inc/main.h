@@ -91,6 +91,12 @@
 // Инициализация оборудования
 void InitAll();
 
+// Функции для отработки команд
+void FooStage_init();
+void FooStage_execute();
+void MeasureStage_init();
+void MeasureStage_execute();
+
 // Функции для работы со всеми подключёнными АЦП HX711
 void init_all_hx711();
 void read_all_hx711();
@@ -99,6 +105,8 @@ void send_all_hx711_packages();
 // Функции для отработки поступивших команд
 void UserEP3_OUT_Callback(uint8_t *buffer);
 void restart(void);
+void set_FooStage(void);
+void set_MeasureStage(void);
 
 // Отправка предопределённых сообщений
 void send_confirm_msg(void);
