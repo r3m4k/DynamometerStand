@@ -14,7 +14,8 @@
 #include "UsbPort.hpp"
 #include "Usart.hpp"
 #include "Message.hpp"
-#include "CommandProcessing.hpp"
+#include "CommandDescription.hpp"
+#include "CommandManager.hpp"
 
 // ----------------------------------------------------------------------------
 //
