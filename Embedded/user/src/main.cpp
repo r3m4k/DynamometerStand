@@ -230,8 +230,11 @@ int main()
         }
     #endif
 
-        // Сменим current_stage_ptr, если есть элементы в очереди program_stage_queue
+        // Сбросим флаг is_init у текущей стадии и сменим её, если есть элементы в очереди program_stage_queue
         if(!program_stage_queue.is_empty()){
+            if (current_stage_ptr){
+                current_stage_ptr->is_init = false;
+            }    
             current_stage_ptr = program_stage_queue.get();
         }
 
@@ -345,7 +348,8 @@ void init_all_hx711(){
 void read_all_hx711(){
     for(auto& hx711_variant : hx711_array){
         std::visit([](auto& hx711){
-                hx711.read_adc_val();
+                if (hx711.is_alive)
+                    hx711.read_adc_val();
             }, hx711_variant);
     }
 }
