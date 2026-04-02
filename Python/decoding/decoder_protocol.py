@@ -53,6 +53,13 @@ class DecoderProtocol(Protocol[T]):
         """
         ...
 
+    def __str__(self) -> str:
+        """Строковое представление состояния декодера.
+        Returns:
+            str: Многострочная строка с информацией о декодере.
+        """
+        ...
+
     def save_received_data(self, filename: str | Path, sep: str = ',') -> None:
         """Сохранение всех накопленных данных в файл.
 

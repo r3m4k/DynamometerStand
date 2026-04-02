@@ -14,7 +14,8 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 # User imports
 from app_logger import app_logger
-from byte_source.com_port import ComPort, ComPortReadError
+from byte_source.com_port import ComPortHX711 as ComPort
+from byte_source.com_port import ComPortReadError
 from decoding import DecoderProtocol
 from decoding.hx711_decoding import HX711Decoder as Decoder
 from decoding.hx711_decoding import HX711Data as DataType
@@ -82,6 +83,7 @@ class ComPortReader(QObject):
                 self.error_occurred.emit(f"Неизвестная ошибка: {e}")
             finally:
                 self.finished.emit()
+                app_logger.debug(f'{self._decoder}')
 
         def stop(self) -> None:
             """Изменение внутреннего флага для завершения чтения данных из порта."""

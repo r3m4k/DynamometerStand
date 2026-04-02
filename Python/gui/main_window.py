@@ -102,7 +102,7 @@ class MainWindow(QMainWindow):
         self._start_button.clicked.connect(self._start_measuring)
         self._stop_button.clicked.connect(self._stop_measuring)
 
-        self._com_port_reader.data_received.connect(self._calc_torque)
+        self._com_port_reader.data_received.connect(self._data_received)
         self._com_port_reader.finished.connect(self._finishing_reading_data)
         self._com_port_reader.error_occurred.connect(self._error_handler)
 
@@ -214,6 +214,11 @@ class MainWindow(QMainWindow):
         app_logger.info('Завершение чтения данных')
         self._msg_text_edit.append('Завершение чтения данных')
         QMessageBox.information(self, "Уведомление", "Чтение данных завершено")
+
+    def _data_received(self, adc_data: HX711Data):
+        # TODO: сохранить полученный пакет данных в хранилище
+        # print(adc_data)
+        self._calc_torque(adc_data)
 
     def _calc_torque(self, adc_data: HX711Data) -> None:
         try:
