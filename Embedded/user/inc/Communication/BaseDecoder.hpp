@@ -84,22 +84,13 @@ namespace Decoder{
      */
     template<class Derived>
     class BaseDecoder{
-        // /**
-        //  * @brief   Первый байт заголовка командного пакета.
-        //  */
-        // static constexpr uint8_t HeaderFirstByte  = 0xC8;
-
-        // /**
-        //  * @brief   Второй байт заголовка командного пакета.
-        //  */
-        // static constexpr uint8_t HeaderSecondByte = 0x8C;
 
     protected:
         Messages::SizedMessage<VCP_BUFFER_SIZE> current_message;   ///< Текущее собираемое сообщение
-        uint8_t byte_index = 0;                ///< Индекс следующего байта в current_message
-
         DecoderStages decode_stage = DecoderStages::WantHeader;     ///< Текущее состояние автомата
-        DecodeFunc    decode_func  = nullptr;                       ///< Функция декодирования текущего пакета
+        
+        DecodeFunc decode_func  = nullptr;      ///< Функция декодирования текущего пакета
+        uint8_t byte_index = 0;                 ///< Индекс следующего байта в current_message
 
         /// Скользящее окно из двух последних принятых байт в стадии WantHeader.
         /// Старший байт – предыдущий принятый, младший – самый свежий.

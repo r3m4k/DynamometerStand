@@ -361,7 +361,7 @@ namespace Commands{
         /**
          * @brief   Очередь отложенных команд для исполнения в main.
          * @details Используется SPSC-очередь: put() вызывается из контекста
-         *          USART IRQ (через DecoderImu::process_command_packet),
+         *          USART IRQ (через DecoderHX711::process_command_packet),
          *          get() — из основного цикла main.
          */
         SpscRingBuffer<CommandHandler, 8> command_queue;

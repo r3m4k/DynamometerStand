@@ -20,57 +20,116 @@
 /* Defines -------------------------------------------------------------------*/
 
 /* Global variables ----------------------------------------------------------*/
-extern STM_CppLib::Commands::CommandManager command_manager;
+/**
+ * @brief   Внешний менеджер команд, определённый в пользовательском коде.
+ */
+extern Commands::CommandManager command_manager;
 
 // -----------------------------------------------------------------------------
-/**
- * @brief   Декодер сообщений от компьютера (протокол «Телега»).
- * @details Содержит конечный автомат для последовательного разбора байтов
- *          входящего сообщения. Поддерживаемый формат:
- *          - Заголовок: 0x7E, 0xE7
- *          - Формат: 0xFF (в данной версии только этот формат)
- *          - Данные: 2 байта
- *          - Контрольная сумма: младший байт суммы всех предыдущих байтов.
- * 
- *          При успешном приёме вызывается com_port.SendConfirmMessage(),
- *          сообщение передаётся в command_manager.match_message_to_command(),
- *          и если команда найдена, она добавляется в очередь команд.
- *          В противном случае отправляется сообщение об ошибке.
- */
-class DecoderHX711{
-private:
-    STM_CppLib::Message current_message;   ///< Текущее обрабатываемое сообщение
 
-public:
-    /**
-     * @brief   Конструктор по умолчанию.
-     * @details Инициализирует автомат начальным состоянием Want7E.
-     */
-    DecoderHX711() = default;
+namespace Decoder{
 
     /**
-     * @brief   Деструктор по умолчанию.
+     * @brief   Декодер командных пакетов IMU-протокола.
+     * @details Конкретизирует BaseDecoder под протокол IMU: задаёт байты
+     *          заголовка, реализует выбор функции разбора по байту формата.
+     *          Для контрольной суммы используется реализация по умолчанию
+     *          (модульная сумма) из BaseDecoder.
      */
-    ~DecoderHX711() = default;
+    class DecoderHX711 : public BaseDecoder<DecoderHX711>{
+    public:
+        /**
+         * @brief   Первый байт заголовка командного пакета.
+         */
+        static constexpr uint8_t HeaderFirstByte  = 0xC8;
 
-    /**
-     * @brief   Обработка входящего сообщения.
-     * @param   message   Константная ссылка на объект Message (64 байта).
-     * @details Сохраняет сообщение во внутренний буфер и последовательно
-     *          передаёт каждый байт методу byte_processing().
-     */
-    void message_processing(const STM_CppLib::Message& message){
-        // Скопируем сообщений для безопасности и 
-        // для возможности его использования в других методах
-        current_message = message;
-        const STM_CppLib::Commands::Command* command = command_manager.match_message_to_command(current_message);
-        if (command){
-            command_manager.add_command(*command);
+        /**
+         * @brief   Второй байт заголовка командного пакета.
+         */
+        static constexpr uint8_t HeaderSecondByte = 0x8C;
+
+        /**
+         * @def     HX711CommandType
+         * @brief   Байт формата для командного пакета.
+         */
+        static constexpr uint8_t HX711CommandType = 0xAB;
+
+        /**
+         * @brief   Возвращает функцию разбора пакета по байту формата.
+         * @param   fmt   Байт формата из пакета.
+         * @return  DecodeFunc   Функция-обработчик пакета или nullptr,
+         *                       если формат неизвестен.
+         * @details Поддерживаемые форматы:
+         *          - HX711CommandType (0xAB) – командный пакет, обрабатывается
+         *            функцией process_command_packet.
+         *          Возвращает nullptr для любых других значений.
+         */
+        DecodeFunc get_decode_func(uint8_t fmt){
+            switch (fmt){
+                case HX711CommandType: return &process_command_packet;
+                default: return nullptr;
+            }
         }
-        else {
-            send_error_msg();
+
+    private:
+        /**
+         * @brief   Обработчик командного пакета.
+         * @param   msg   Собранный пакет (header + format + length + data + crc).
+         * @details Строит view-объект на data-секцию пакета и ищет команду
+         *          сначала в списке срочных, затем в списке отложенных:
+         *          - срочная команда: если команда требует подтверждения
+         *            (confirm_policy == Required), выполняется
+         *            Send_Confirm_Cmd.handler.execute() (блокирующая отправка
+         *            в IRQ), затем сразу исполняется обработчик полученной
+         *            команды в контексте декодера;
+         *          - отложенная команда: если команда требует подтверждения,
+         *            в очередь помещается Send_Confirm_Cmd, затем сам обработчик.
+         *            Иначе — только обработчик. Записи исполняются в main
+         *            в порядке добавления.
+         *          - если команда не найдена — в очередь помещается
+         *            Send_Error_Cmd, которая в main отправит ПК сообщение
+         *            об ошибке.
+         *
+         * @note    Срочные команды исполняются в контексте USART IRQ,
+         *          поэтому должны быть короткими и IRQ-safe.
+         *          Блокирующая отправка confirm в urgent-ветке (при Required) —
+         *          временный компромисс; перенос в main запланирован вместе
+         *          с миграцией USART.
+         */
+        static void process_command_packet(const Messages::Message& msg){
+            // View на data-секцию принятого пакета:
+            //   смещение 4 (header 2 + format 1 + length 1),
+            //   длина из байта length (bytes_msg[3]).
+            const uint8_t data_len = msg.bytes_msg[3];
+            Messages::Message code(&msg.bytes_msg[4], data_len);
+
+            // 1. Срочная команда — подтвердить (если требуется) и исполнить немедленно.
+            const Commands::BaseCommand* urgent = command_manager.find_urgent(code);
+            if (urgent){
+                if (urgent->confirm_policy == Commands::ConfirmPolicy::Required){
+                    Commands::Send_Confirm_Cmd.handler.execute();
+                }
+                urgent->handler.execute();
+                return;
+            }
+
+            // 2. Отложенная команда — в очередь сначала подтверждение
+            //    (если команда его требует), затем сам обработчик.
+            //    Обе записи исполнятся в main.
+            const Commands::BaseCommand* deferred = command_manager.find_deferred(code);
+            if (deferred){
+                if (deferred->confirm_policy == Commands::ConfirmPolicy::Required){
+                    command_manager.add_to_queue(Commands::Send_Confirm_Cmd);
+                }
+                command_manager.add_to_queue(*deferred);
+                return;
+            }
+
+            // 3. Команда не найдена — положить в очередь сообщение об ошибке.
+            command_manager.add_to_queue(Commands::Send_Error_Cmd);
         }
-    }
-};
+    };
+
+} // namespace Decoder
 
 #endif /*   DECODER_HX711_HPP   */

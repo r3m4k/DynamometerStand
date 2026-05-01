@@ -17,23 +17,6 @@
 #include "HX711.hpp"
 
 /* Defines -------------------------------------------------------------------*/
-/**
- * @def     HeaderFirstByte
- * @brief   Первый байт заголовка пакета
- */
-#define HeaderFirstByte     0xC8
-
-/**
- * @def     HeaderSecondByte
- * @brief   Второй байт заголовка пакета
- */
-#define HeaderSecondByte    0x8C
-
-/**
- * @def     Format
- * @brief   Байт формата пакета
- */
-#define Format              0x01
 
 /* Global variables ----------------------------------------------------------*/
 
@@ -48,6 +31,12 @@ namespace Packages{
      */
     class HX711Package: public BasePackage{
     private:
+        /**
+         * @def     DataFormat
+         * @brief   Байт формата пакета
+         */
+        static constexpr uint8_t DataFormat = 0x01;
+
         int32_t* adc_value_ptr;        ///< Указатель на внешние данные АЦП
         HX711::HX711Gain* gain_ptr;     ///< Указатель на текущий канал и коэффициент усиления
 
@@ -65,7 +54,9 @@ namespace Packages{
         #pragma pack(1)
         struct package_body_t
         {
-            uint8_t header[4] = {HeaderFirstByte, HeaderSecondByte, Format, 0};
+            uint8_t header[4] = {BasePackage::HeaderFirstByte, 
+                                 BasePackage::HeaderSecondByte, 
+                                 DataFormat, 0};
             uint32_t time = 0;
             uint8_t id_num;
             int32_t adc_value;
