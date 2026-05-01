@@ -1,11 +1,31 @@
 /** ****************************************************************************
- * @file CommandDescription.hpp
- * @brief Модуль описания команд для встроенной системы.
- * 
- * @version 1.0.0
- * @date Январь 2026
- * @author Романовский Роман
- **************************************************************************** */
+ * @file    CommandProcessing.hpp
+ * @author  Романовский Роман
+ * @brief   Модуль обработки команд для встроенной системы.
+ *
+ * @details Предоставляет механизмы для регистрации, сопоставления и выполнения
+ *          команд. Команда представляет собой связку кода (байтового массива
+ *          произвольной длины) и обработчика (функции без аргументов).
+ *
+ *          Поддерживаются два вида команд:
+ *          - Срочные (urgent) — выполняются немедленно в контексте декодера
+ *            (в IRQ USART). Используются для коротких IRQ-safe действий.
+ *          - Отложенные (deferred) — помещаются в очередь и исполняются
+ *            в основном цикле программы.
+ *
+ *          Классы:
+ *          - CommandHandler — обёртка для функции-обработчика.
+ *          - BaseCommand    — нешаблонный класс команды (код + обработчик).
+ *                             Код представлен view-объектом Message, ссылающимся
+ *                             на буфер наследника.
+ *          - Command<N>     — шаблонный наследник с собственным буфером для
+ *                             кода длиной N байт. Поддерживает CTAD для вывода
+ *                             N из размера инициализирующего массива или
+ *                             строкового литерала (в последнем случае
+ *                             завершающий '\0' отбрасывается).
+ *          - CommandManager — контейнер со списками urgent/deferred команд
+ *                             и очередью для отложенного исполнения.
+ *************************************************************************** */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef COMMAND_DESCRIPTION_HPP
@@ -13,119 +33,378 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include <cstring>
+#include <stdint.h>
 
 #include "main.h"
-#include "Message.hpp"
-#include "StaticQueue.hpp"
+#include "Messages.hpp"
+#include "SpscRingBuffer.hpp"
 
 /* Defines -------------------------------------------------------------------*/
-#define CommandLength   6   // Длина массива для кодировки команды
 
-/* Using  --------------------------------------------------------------------*/
+/* Usings --------------------------------------------------------------------*/
+/**
+ * @brief   Тип функции-обработчика команды (без аргументов и возврата).
+ */
 using CommandHandlerFunc = void(*)(void);
 
 /* Global variables ----------------------------------------------------------*/
 
-namespace STM_CppLib{
-    namespace Commands{
+// -----------------------------------------------------------------------------
+namespace Commands{
 
-/** ****************************************************************************
- * @class CommandHandler
- * @brief Класс-обёртка для функции-обработчика команды.
- * 
- * Инкапсулирует указатель на функцию, предоставляет безопасный интерфейс 
- * для выполнения обработчика. Поддерживает только копирование, перемещение 
- * запрещено.
- **************************************************************************** */
+    /**
+     * @brief   Политика подтверждения получения команды.
+     * @details Указывается при регистрации команды и определяет, отправляется
+     *          ли Send_Confirm_Cmd при её приёме декодером.
+     *          - Required — при приёме команды декодер отправляет подтверждение
+     *            (для urgent — немедленно из IRQ, для deferred — через очередь).
+     *          - NotRequired — подтверждение не отправляется. Используется
+     *            для команд, сам смысл которых — ответ или запрос
+     *            (handshake ack, heartbeat ack, запрос confirm от ПК и т.п.).
+     */
+    enum class ConfirmPolicy{
+        Required,
+        NotRequired
+    };
 
-class CommandHandler{
-    CommandHandlerFunc handler;
+    /**
+     * @brief   Обёртка для функции-обработчика команды.
+     * @details Инкапсулирует указатель на функцию, предоставляет безопасный
+     *          запуск (nullptr-обработчик просто ничего не делает).
+     *          Поддерживает только копирование; перемещение запрещено.
+     */
+    class CommandHandler{
+        CommandHandlerFunc handler;
 
-public:
-    // 
-    CommandHandler(): handler(nullptr) {}
+    public:
+        /**
+         * @brief   Конструктор по умолчанию (nullptr-обработчик).
+         * @details Пустой хэндлер безопасен — execute() на nullptr ничего
+         *          не делает. Default-ctor требуется, в частности, для
+         *          массивов слотов в SpscRingBuffer<CommandHandler, N>.
+         */
+        CommandHandler(): handler(nullptr) {}
 
-    // Конструктор с функцией без аргументов
-    CommandHandler(CommandHandlerFunc _handler): handler(_handler){}
+        /**
+         * @brief   Конструктор из указателя на функцию.
+         */
+        CommandHandler(CommandHandlerFunc h): handler(h) {}
 
-    // Конструктор копирования
-    CommandHandler(const CommandHandler& other){
-        handler = other.handler;
-    }
-    
-    // Оператор присваивания копированием
-    CommandHandler& operator=(const CommandHandler& other){
-        if (this != &other){
-            handler = other.handler;
-        }        
-        return *this;
-    }
+        /**
+         * @brief   Конструктор копирования.
+         */
+        CommandHandler(const CommandHandler& other): handler(other.handler) {}
 
-    // Конструктор перемещения 
-    CommandHandler(CommandHandler&& other) noexcept = delete;
-    
-    // Оператор присваивания перемещением
-    CommandHandler& operator=(CommandHandler&& other) noexcept = delete;
-
-    // Запуск обработчика
-    void execute(){
-        if (handler) {
-            handler();
+        /**
+         * @brief   Оператор присваивания копированием.
+         */
+        CommandHandler& operator=(const CommandHandler& other){
+            if (this != &other){
+                handler = other.handler;
+            }
+            return *this;
         }
-    }
-};
 
-/** ****************************************************************************
- * @class Command
- * @brief Класс, описывающий команду системы.
- * 
- * Содержит байтовый код команды и связанный с ней обработчик.
- * Предоставляет операторы сравнения с сообщениями и другими командами.
- **************************************************************************** */
+        /**
+         * @brief   Move-операции запрещены.
+         */
+        CommandHandler(CommandHandler&&) noexcept = delete;
+        CommandHandler& operator=(CommandHandler&&) noexcept = delete;
 
-class Command{
-public:
-    uint8_t command_code[CommandLength];    // Массив для кодировки команды
-    CommandHandler command_handler;         // Обработчик команды
-    
-    // Конструктор с массивом и обработчиком
-    Command(const uint8_t* _command_code, CommandHandlerFunc _handler_func): 
-            command_handler(_handler_func){
-        std::memcpy(command_code, _command_code, CommandLength);
-    }
+        /**
+         * @brief   Запуск обработчика.
+         * @details Если handler == nullptr, вызов игнорируется.
+         */
+        void execute() const {
+            if (handler){
+                handler();
+            }
+        }
+    };
 
-    // Конструктор копирования
-    Command(const Command& other) : command_handler(other.command_handler) {
-        std::memcpy(command_code, other.command_code, CommandLength);
-    }
-    
-    // Оператор присваивания копированием
-    Command& operator=(const Command& other){
-        if (this != &other){
-            std::memcpy(command_code, other.command_code, CommandLength);
-            command_handler = other.command_handler;
-        }        
-        return *this;
-    }
+    // -------------------------------------------------------------------------
 
-    // Конструктор перемещения 
-    Command(Command&& other) noexcept = delete;
-    
-    // Оператор присваивания перемещением
-    Command& operator=(Command&& other) noexcept = delete;
+    /**
+     * @brief   Нешаблонный базовый класс команды.
+     * @details Содержит код команды (view-объект Message, ссылающийся на буфер
+     *          наследника) и обработчик. Хранение и размер буфера — забота
+     *          наследника Command<N>. BaseCommand позволяет складывать команды
+     *          разной длины кода в один массив указателей на базу.
+     * @note    Поля code/handler публичные — в стиле остальных классов проекта
+     *          (ср. Messages::bytes_msg).
+     */
+    class BaseCommand{
+    public:
+        Messages::Message code;         ///< View на буфер кода команды
+        CommandHandler handler;         ///< Обработчик команды
+        ConfirmPolicy confirm_policy;   ///< Политика подтверждения при приёме
 
-    // Оператор сравнения
-    bool operator==(const Message& msg){
-        return std::memcmp(command_code, msg.bytes_msg, CommandLength) == 0;
-    }
+        /**
+         * @brief   Конструктор с привязкой к внешнему буферу.
+         * @param   buf   Указатель на буфер кода (живёт в наследнике).
+         * @param   size  Длина кода в байтах (msg_size).
+         * @param   h     Функция-обработчик команды.
+         */
+        BaseCommand(uint8_t* buf, uint8_t size, CommandHandlerFunc h, ConfirmPolicy policy):
+            code(buf, size), handler(h), confirm_policy(policy) {}
 
-    // Оператор сравнения с массивом байтов
-    bool operator==(const uint8_t* code) const {
-        return std::memcmp(command_code, code, CommandLength) == 0;
-    }
-};
+        /**
+         * @brief   Деструктор по умолчанию.
+         */
+        ~BaseCommand() = default;
+
+        /**
+         * @brief   Копирование и перемещение запрещены.
+         * @details Команды — глобальные объекты, копировать их нет смысла.
+         *          Массивы указателей на BaseCommand в CommandManager
+         *          хранят ссылки, а не копии.
+         */
+        BaseCommand(const BaseCommand&) = delete;
+        BaseCommand& operator=(const BaseCommand&) = delete;
+        BaseCommand(BaseCommand&&) noexcept = delete;
+        BaseCommand& operator=(BaseCommand&&) noexcept = delete;
+    };
+
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief   Команда с собственным буфером кода фиксированной длины.
+     * @tparam  N   Длина кода в байтах.
+     * @details Наследник BaseCommand, владеющий буфером-массивом для кода.
+     *          В конструкторе копирует N байт из переданного указателя
+     *          в собственный буфер и инициализирует BaseCommand view-объектом
+     *          на этот буфер.
+     *
+     *          Для удобного создания из массивов/литералов следует
+     *          использовать наследников ByteCommand<N> и StringCommand<N>,
+     *          у каждого из которых есть собственный deduction guide
+     *          с выводом N. Прямое создание объекта Command<N> возможно,
+     *          но требует явного указания N и источника как указателя:
+     *
+     *            uint8_t raw[3] = {0x01, 0x02, 0x03};
+     *            Command<3> cmd(raw, handler);
+     */
+    template<uint8_t N>
+    class Command: public BaseCommand{
+        uint8_t buffer[N];      ///< Собственный буфер кода команды
+
+    public:
+        /**
+         * @brief   Конструктор команды из указателя на источник.
+         * @param   src   Указатель на массив из N байт. Данные копируются
+         *                в собственный буфер объекта, поэтому источник
+         *                может жить меньше, чем команда.
+         * @param   h     Функция-обработчик команды.
+         */
+        Command(const uint8_t* src, CommandHandlerFunc h, ConfirmPolicy policy):
+            BaseCommand(buffer, N, h, policy){
+            std::memcpy(buffer, src, N);
+        }
+
+        /**
+         * @brief   Копирование и перемещение запрещены (в стиле BaseCommand).
+         */
+        Command(const Command&) = delete;
+        Command& operator=(const Command&) = delete;
+        Command(Command&&) noexcept = delete;
+        Command& operator=(Command&&) noexcept = delete;
+
+        ~Command() = default;
+    };
+
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief   Команда, создаваемая из байтового массива.
+     * @tparam  N   Длина кода в байтах (выводится через deduction guide
+     *              из размера инициализирующего массива).
+     * @details Наследник Command<N>: не добавляет полей, только
+     *          принимает инициализацию в виде массива uint8_t[N]. 
+     * 
+     *          Нужен для того, чтобы CTAD корректно выводил N без конфликта
+     *          со StringCommand — каждый тип имеет ровно один способ
+     *          создания и ровно один deduction guide.
+     */
+    template<uint8_t N>
+    class ByteCommand: public Command<N>{
+    public:
+        /**
+         * @brief   Конструктор из байтового массива.
+         * @param   code_data   Массив байт кода команды (длина выводится в N).
+         * @param   h           Функция-обработчик команды.
+         */
+        ByteCommand(const uint8_t (&code_data)[N], CommandHandlerFunc h, ConfirmPolicy policy):
+            Command<N>(code_data, h, policy) {}
+    };
+
+    /**
+     * @brief   Deduction guide для ByteCommand.
+     * @details Позволяет писать: ByteCommand cmd({0x01, 0x02}, handler),
+     *          с автоматическим выводом ByteCommand<2>.
+     */
+    template<uint8_t N>
+    ByteCommand(const uint8_t (&)[N], CommandHandlerFunc, ConfirmPolicy) -> ByteCommand<N>;
+
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief   Команда, создаваемая из строкового литерала.
+     * @tparam  N   Длина кода в байтах (длина литерала без учёта '\0',
+     *              выводится через deduction guide).
+     * @details Наследник Command<N>: не добавляет полей, только
+     *          принимает инициализацию в виде строкового литерала
+     *          длиной N+1 (включая завершающий '\0', который отбрасывается).
+     *
+     *          Отбрасывание '\0' означает, что на стороне ПК команда
+     *          должна отправляться без завершающего нуля (data-поле
+     *          пакета содержит только значащие символы).
+     */
+    template<uint8_t N>
+    class StringCommand: public Command<N>{
+    public:
+        /**
+         * @brief   Конструктор из строкового литерала.
+         * @param   code_data   Литерал длины N+1 (с завершающим '\0').
+         *                      В буфер команды копируются первые N байт.
+         * @param   h           Функция-обработчик команды.
+         */
+        StringCommand(const char (&code_data)[N + 1], CommandHandlerFunc h, ConfirmPolicy policy):
+            Command<N>(reinterpret_cast<const uint8_t*>(code_data), h, policy) {}
+    };
+
+    /**
+     * @brief   Deduction guide для StringCommand.
+     * @details Позволяет писать: StringCommand cmd("TEXT", handler),
+     *          с автоматическим выводом StringCommand<4> (длина без '\0').
+     *          Строковый литерал имеет тип const char[N], где N — длина
+     *          с учётом '\0'; в целевой тип передаётся N - 1.
+     */
+    template<uint8_t N>
+    StringCommand(const char (&)[N], CommandHandlerFunc, ConfirmPolicy) -> StringCommand<N - 1>;
+
+    // -------------------------------------------------------------------------
+    /*!
+     * @defgroup SupportedCommands Поддерживаемые команды
+     * @brief    Глобальные объекты команд, регистрируемые в CommandManager.
+     * @details  Каждая команда — inline-объект ByteCommand<N> или StringCommand<N>
+     * @{
+     */
+
+    /**
+     * @brief   Срочная команда: перезагрузка микроконтроллера.
+     */
+    inline ByteCommand Restart_Cmd({0xff, 0xff}, restart, ConfirmPolicy::Required);
+
+    /**
+     * @brief   Отложенная команда: переход в стадию FooStage.
+     */
+    inline ByteCommand Set_FooStage_Cmd({0xaa, 0x01}, set_FooStage, ConfirmPolicy::Required);
+
+    /**
+     * @brief   Отложенная команда: переход в стадию MeasureStage.
+     */
+    inline ByteCommand Set_MeasureStage_Cmd({0xaa, 0x02}, set_MeasureStage, ConfirmPolicy::Required);
+
+    /**
+     * @brief   Отложенная команда: отправка подтверждения приёма.
+     */
+    inline StringCommand Send_Confirm_Cmd("CONFIRM", send_confirm_msg, ConfirmPolicy::NotRequired);
+
+    /**
+     * @brief   Отложенная команда: отправка ack на handshake.
+     */
+    inline StringCommand Send_Handshake_Ack_Cmd("HANDSHAKE_ACK", send_handshake_ack, ConfirmPolicy::NotRequired);
+
+    /**
+     * @brief   Отложенная команда: отправка ack на heartbeat.
+     */
+    inline StringCommand Send_Heartbeat_Ack_Cmd("HEARTBEAT_ACK", send_heartbeat_ack, ConfirmPolicy::NotRequired);
+
+    /**
+     * @brief   Системная команда: отправка сообщения об ошибке.
+     */
+    inline StringCommand Send_Error_Cmd("UNKNOWN_COMMAND", send_error_msg, ConfirmPolicy::NotRequired);
+
+    /** @} */ // SupportedCommands
+
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief   Менеджер поддерживаемых команд.
+     * @details Хранит два статических списка указателей на BaseCommand:
+     *          urgent_commands (исполняются в IRQ-контексте немедленно)
+     *          и deferred_commands (помещаются в очередь для исполнения в main).
+     *          Также владеет очередью CommandHandler для отложенных команд.
+     * @note    При добавлении новой команды (ByteCommand или StringCommand)
+     *          не забыть включить её в соответствующий массив ниже.
+     */
+    class CommandManager{
+    public:
+        /**
+         * @brief   Список срочных команд (исполняются в контексте декодера).
+         */
+        inline static const BaseCommand* urgent_commands[] = {
+            &Restart_Cmd
+        };
+
+        /**
+         * @brief   Список отложенных команд (помещаются в очередь).
+         */
+        inline static const BaseCommand* deferred_commands[] = {
+            &Set_FooStage_Cmd,
+            &Set_MeasureStage_Cmd,
+            &Send_Confirm_Cmd,
+            &Send_Handshake_Ack_Cmd,
+            &Send_Heartbeat_Ack_Cmd
+        };
+
+        /**
+         * @brief   Очередь отложенных команд для исполнения в main.
+         * @details Используется SPSC-очередь: put() вызывается из контекста
+         *          USART IRQ (через DecoderImu::process_command_packet),
+         *          get() — из основного цикла main.
+         */
+        SpscRingBuffer<CommandHandler, 8> command_queue;
+
+        /**
+         * @brief   Поиск срочной команды по коду.
+         * @param   code   View на байты кода (обычно data-секция пакета).
+         * @return  Указатель на найденную BaseCommand или nullptr.
+         */
+        const BaseCommand* find_urgent(const Messages::Message& code) const {
+            for (const BaseCommand* cmd : urgent_commands){
+                if (cmd->code == code){
+                    return cmd;
+                }
+            }
+            return nullptr;
+        }
+
+        /**
+         * @brief   Поиск отложенной команды по коду.
+         * @param   code   View на байты кода (обычно data-секция пакета).
+         * @return  Указатель на найденную BaseCommand или nullptr.
+         */
+        const BaseCommand* find_deferred(const Messages::Message& code) const {
+            for (const BaseCommand* cmd : deferred_commands){
+                if (cmd->code == code){
+                    return cmd;
+                }
+            }
+            return nullptr;
+        }
+
+        /**
+         * @brief   Добавление команды в очередь отложенного исполнения.
+         * @param   command   Ссылка на команду (только её handler копируется
+         *                    в очередь).
+         * @return  true, если команда добавлена; false, если очередь заполнена.
+         */
+        bool add_to_queue(const BaseCommand& command){
+            return command_queue.put(command.handler);
+        }
+    };
 
     } // namespace Commands
-} // namespace STM_CppLib
 
 #endif /*   COMMAND_DESCRIPTION_HPP   */

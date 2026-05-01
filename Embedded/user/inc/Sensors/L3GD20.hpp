@@ -95,6 +95,7 @@ namespace STM_CppLib{
             ReadGyro();
         }
 
+    private:
         void ReadGyro(){
             uint8_t high_bit = 0;
             uint8_t low_bit = 0;

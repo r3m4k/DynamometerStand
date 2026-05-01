@@ -14,8 +14,8 @@
  **************************************************************************** */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __SIMPLE_KALMAN_FILTER_HPP
-#define __SIMPLE_KALMAN_FILTER_HPP
+#ifndef SIMPLE_KALMAN_FILTER_HPP
+#define SIMPLE_KALMAN_FILTER_HPP
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
@@ -90,4 +90,4 @@ public:
     }
 };
 
-#endif /*   __SIMPLE_KALMAN_FILTER_HPP   */
+#endif /*   SIMPLE_KALMAN_FILTER_HPP   */
