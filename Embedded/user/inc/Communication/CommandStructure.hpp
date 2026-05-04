@@ -1,17 +1,12 @@
 /** ****************************************************************************
- * @file    CommandProcessing.hpp
+ * @file    CommandStructure.hpp
  * @author  Романовский Роман
- * @brief   Модуль обработки команд для встроенной системы.
+ * @brief   Структурные классы команд для модуля обработки команд.
  *
- * @details Предоставляет механизмы для регистрации, сопоставления и выполнения
- *          команд. Команда представляет собой связку кода (байтового массива
- *          произвольной длины) и обработчика (функции без аргументов).
- *
- *          Поддерживаются два вида команд:
- *          - Срочные (urgent) — выполняются немедленно в контексте декодера
- *            (в IRQ USART). Используются для коротких IRQ-safe действий.
- *          - Отложенные (deferred) — помещаются в очередь и исполняются
- *            в основном цикле программы.
+ * @details Определяет иерархию классов, описывающих команду как связку
+ *          кода (байтового массива произвольной длины) и обработчика
+ *          (функции без аргументов). Конкретные объекты команд и их
+ *          менеджер вынесены в CommandProcessing.hpp.
  *
  *          Классы:
  *          - CommandHandler — обёртка для функции-обработчика.
@@ -19,17 +14,15 @@
  *                             Код представлен view-объектом Message, ссылающимся
  *                             на буфер наследника.
  *          - Command<N>     — шаблонный наследник с собственным буфером для
- *                             кода длиной N байт. Поддерживает CTAD для вывода
- *                             N из размера инициализирующего массива или
- *                             строкового литерала (в последнем случае
- *                             завершающий '\0' отбрасывается).
- *          - CommandManager — контейнер со списками urgent/deferred команд
- *                             и очередью для отложенного исполнения.
+ *                             кода длиной N байт.
+ *          - ByteCommand<N> — наследник Command<N> с CTAD из массива uint8_t.
+ *          - StringCommand<N> — наследник Command<N> с CTAD из строкового
+ *                             литерала (завершающий '\0' отбрасывается).
  *************************************************************************** */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef COMMAND_DESCRIPTION_HPP
-#define COMMAND_DESCRIPTION_HPP
+#ifndef COMMAND_STRUCTURE_HPP
+#define COMMAND_STRUCTURE_HPP
 
 /* Includes ------------------------------------------------------------------*/
 #include <cstring>
@@ -37,7 +30,6 @@
 
 #include "main.h"
 #include "Messages.hpp"
-#include "SpscRingBuffer.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 
@@ -282,129 +274,6 @@ namespace Commands{
     template<uint8_t N>
     StringCommand(const char (&)[N], CommandHandlerFunc, ConfirmPolicy) -> StringCommand<N - 1>;
 
-    // -------------------------------------------------------------------------
-    /*!
-     * @defgroup SupportedCommands Поддерживаемые команды
-     * @brief    Глобальные объекты команд, регистрируемые в CommandManager.
-     * @details  Каждая команда — inline-объект ByteCommand<N> или StringCommand<N>
-     * @{
-     */
+} // namespace Commands
 
-    /**
-     * @brief   Срочная команда: перезагрузка микроконтроллера.
-     */
-    inline ByteCommand Restart_Cmd({0xff, 0xff}, restart, ConfirmPolicy::Required);
-
-    /**
-     * @brief   Отложенная команда: переход в стадию FooStage.
-     */
-    inline ByteCommand Set_FooStage_Cmd({0xaa, 0x01}, set_FooStage, ConfirmPolicy::Required);
-
-    /**
-     * @brief   Отложенная команда: переход в стадию MeasureStage.
-     */
-    inline ByteCommand Set_MeasureStage_Cmd({0xaa, 0x02}, set_MeasureStage, ConfirmPolicy::Required);
-
-    /**
-     * @brief   Отложенная команда: отправка подтверждения приёма.
-     */
-    inline StringCommand Send_Confirm_Cmd("CONFIRM", send_confirm_msg, ConfirmPolicy::NotRequired);
-
-    /**
-     * @brief   Отложенная команда: отправка ack на handshake.
-     */
-    inline StringCommand Send_Handshake_Ack_Cmd("HANDSHAKE_ACK", send_handshake_ack, ConfirmPolicy::NotRequired);
-
-    /**
-     * @brief   Отложенная команда: отправка ack на heartbeat.
-     */
-    inline StringCommand Send_Heartbeat_Ack_Cmd("HEARTBEAT_ACK", send_heartbeat_ack, ConfirmPolicy::NotRequired);
-
-    /**
-     * @brief   Системная команда: отправка сообщения об ошибке.
-     */
-    inline StringCommand Send_Error_Cmd("UNKNOWN_COMMAND", send_error_msg, ConfirmPolicy::NotRequired);
-
-    /** @} */ // SupportedCommands
-
-    // -------------------------------------------------------------------------
-
-    /**
-     * @brief   Менеджер поддерживаемых команд.
-     * @details Хранит два статических списка указателей на BaseCommand:
-     *          urgent_commands (исполняются в IRQ-контексте немедленно)
-     *          и deferred_commands (помещаются в очередь для исполнения в main).
-     *          Также владеет очередью CommandHandler для отложенных команд.
-     * @note    При добавлении новой команды (ByteCommand или StringCommand)
-     *          не забыть включить её в соответствующий массив ниже.
-     */
-    class CommandManager{
-    public:
-        /**
-         * @brief   Список срочных команд (исполняются в контексте декодера).
-         */
-        inline static const BaseCommand* urgent_commands[] = {
-            &Restart_Cmd
-        };
-
-        /**
-         * @brief   Список отложенных команд (помещаются в очередь).
-         */
-        inline static const BaseCommand* deferred_commands[] = {
-            &Set_FooStage_Cmd,
-            &Set_MeasureStage_Cmd,
-            &Send_Confirm_Cmd,
-            &Send_Handshake_Ack_Cmd,
-            &Send_Heartbeat_Ack_Cmd
-        };
-
-        /**
-         * @brief   Очередь отложенных команд для исполнения в main.
-         * @details Используется SPSC-очередь: put() вызывается из контекста
-         *          USART IRQ (через DecoderHX711::process_command_packet),
-         *          get() — из основного цикла main.
-         */
-        SpscRingBuffer<CommandHandler, 8> command_queue;
-
-        /**
-         * @brief   Поиск срочной команды по коду.
-         * @param   code   View на байты кода (обычно data-секция пакета).
-         * @return  Указатель на найденную BaseCommand или nullptr.
-         */
-        const BaseCommand* find_urgent(const Messages::Message& code) const {
-            for (const BaseCommand* cmd : urgent_commands){
-                if (cmd->code == code){
-                    return cmd;
-                }
-            }
-            return nullptr;
-        }
-
-        /**
-         * @brief   Поиск отложенной команды по коду.
-         * @param   code   View на байты кода (обычно data-секция пакета).
-         * @return  Указатель на найденную BaseCommand или nullptr.
-         */
-        const BaseCommand* find_deferred(const Messages::Message& code) const {
-            for (const BaseCommand* cmd : deferred_commands){
-                if (cmd->code == code){
-                    return cmd;
-                }
-            }
-            return nullptr;
-        }
-
-        /**
-         * @brief   Добавление команды в очередь отложенного исполнения.
-         * @param   command   Ссылка на команду (только её handler копируется
-         *                    в очередь).
-         * @return  true, если команда добавлена; false, если очередь заполнена.
-         */
-        bool add_to_queue(const BaseCommand& command){
-            return command_queue.put(command.handler);
-        }
-    };
-
-    } // namespace Commands
-
-#endif /*   COMMAND_DESCRIPTION_HPP   */
+#endif /*   COMMAND_STRUCTURE_HPP   */

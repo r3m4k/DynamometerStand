@@ -19,7 +19,7 @@
 #include "hw_config.h"
 #include "BasePackage.hpp"
 #include "Message.hpp"
-#include "DecoderHX711.hpp"
+#include "DecoderTelega.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 // TODO: убрать повторный define
@@ -31,10 +31,10 @@
 #if ENABLE_COMMAND_PROCESSING
 /**
  * @brief   Тип декодера, используемый для обработки входящих сообщений.
- * @details По умолчанию используется DecoderHX711. Может быть заменён
+ * @details По умолчанию используется DecoderTelega. Может быть заменён
  *          на другой тип, удовлетворяющий концепту HasVoidMessageProcessing.
  */
-using Decoder = DecoderHX711;
+using Decoder = DecoderTelega;
 #endif  /* ENABLE_COMMAND_PROCESSING */
 
 /* Global variables ----------------------------------------------------------*/
