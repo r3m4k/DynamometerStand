@@ -20,7 +20,7 @@ from typing import Optional
 import yappi
 
 # User imports
-from config import config
+from async_mc_controller.async_mc_config import config
 
 #############################################
 

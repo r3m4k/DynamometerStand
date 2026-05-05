@@ -15,7 +15,7 @@ from typing import Optional
 # External imports
 
 # User imports
-from config import config
+from async_mc_controller.async_mc_config import config
 from logger import app_logger
 from utils import confirm_from_console
 from byte_source.bytes_source import AsyncBytesSource, AsyncBytesSourceFactory

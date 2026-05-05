@@ -7,7 +7,7 @@
 Attributes:
     config (AppConfig): Глобальный экземпляр конфигурации. Создаётся
         однократно при первом импорте пакета. Все последующие импорты
-        `from config import config` возвращают один и тот же объект.
+        `from async_mc_controller.async_mc_config import config` возвращают один и тот же объект.
     AppConfig (class): Класс модели конфигурации. Может быть использован
         для создания отдельных экземпляров (например, в тестах) или для
         аннотаций типов.
@@ -20,7 +20,7 @@ __author__ = 'Roman Romanovskiy'
 # --------------------------------------------------------
 
 from pathlib import Path
-from config.app_config import AppConfig
+from async_mc_controller.async_mc_config.app_config import AppConfig
 
 # Определяем путь к файлу конфигурации
 _config_path = Path(__file__).parent / "settings.json"

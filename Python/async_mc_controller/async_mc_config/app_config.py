@@ -15,9 +15,9 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 # User imports
-from config.com_port_config import ComPortConfig
-from config.file_source_config import FileSourceConfig
-from config.logger_config import LoggerConfig
+from async_mc_controller.async_mc_config.com_port_config import ComPortConfig
+from async_mc_controller.async_mc_config.file_source_config import FileSourceConfig
+from async_mc_controller.async_mc_config.logger_config import LoggerConfig
 
 #############################################
 

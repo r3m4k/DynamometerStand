@@ -25,7 +25,7 @@ class MpController(Controller):
         - response_queue:   очередь для отправки статусных сообщений и принятых пакетов данных.
     """
 
-    def __init__(self, command_queue: Queue[str], response_queue: Queue):
+    def __init__(self, command_queue: Queue, response_queue: Queue):
         # Зададим остановку чтение данных по флагу
         self._stop_flag: bool = False
         super().__init__(check_condition = lambda: not self._stop_flag)

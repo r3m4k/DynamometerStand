@@ -22,7 +22,7 @@ from typing import Protocol
 # External imports
 
 # User imports
-from byte_source.read_error import ReadError
+from async_mc_controller.byte_source.read_error import ReadError
 
 #########################
 

@@ -6,8 +6,8 @@ from typing import Any
 # External imports
 
 # User imports
-from logger import app_logger
-from config import config
+from async_mc_controller.logger import mc_logger
+from async_mc_controller.async_mc_config import config
 from .signals import Signals
 from .signal_bus import SignalBus
 from .subscribers import (
@@ -34,7 +34,7 @@ from byte_source.read_error import ReadError
 #########################
 
 _bus: SignalBus = SignalBus()
-_logger = app_logger.get_logger('MC.Bus')
+_logger = mc_logger.get_logger('MC.Bus')
 
 # Сигналы, эмиссия которых логируется на уровне DEBUG.
 # Высокочастотные сигналы (NEW_BYTE, PACKAGE_READY) намеренно исключены.

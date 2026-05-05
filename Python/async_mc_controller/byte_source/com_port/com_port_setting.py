@@ -4,7 +4,7 @@ from typing import Optional
 # External imports
 
 # User imports
-from async_mc_controller.config import config
+from async_mc_controller.async_mc_config import config
 from async_mc_controller.utils import confirm_from_console
 from async_mc_controller.logger import mc_logger
 from async_mc_controller.byte_source.bytes_source import AsyncBytesSource, AsyncBytesSourceFactory

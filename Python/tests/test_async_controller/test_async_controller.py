@@ -6,21 +6,21 @@ from pprint import pformat
 # External imports
 
 # User imports
-from logger import mc_logger
-from signal_bus import bus
-from byte_source.com_port import AsyncComPortSetting
-from decoding.hx711_decoding import HX711Decoder
-from controller.controller import Controller
+from async_mc_controller.logger import mc_logger
+from async_mc_controller.signal_bus import bus
+from async_mc_controller.byte_source.com_port import AsyncComPortSetting
+from async_mc_controller.decoding.hx711_decoding import HX711Decoder
+from async_mc_controller.controller.controller import Controller
 
 #########################
 
 # Количество пакетов данных для сбора
-N = 5000
+N = 500
 
 
 async def main() -> None:
 
-    # app_logger.set_log_level(logging.DEBUG)
+    mc_logger.set_log_level(logging.DEBUG)
 
     # Инициализация источника данных
     setting = AsyncComPortSetting()
