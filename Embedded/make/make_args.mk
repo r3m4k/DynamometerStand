@@ -70,6 +70,7 @@ INCLUDES = \
 -I"${SOURCE_DIR}/user/inc/aaa_Project_Files" \
 -I"${SOURCE_DIR}/user/inc/Common" \
 -I"${SOURCE_DIR}/user/inc/Communication" \
+-I"${SOURCE_DIR}/user/inc/Communication/Usart" \
 -I"${SOURCE_DIR}/user/inc/DataContainers" \
 -I"${SOURCE_DIR}/user/inc/Filters" \
 -I"${SOURCE_DIR}/user/inc/Packages" \

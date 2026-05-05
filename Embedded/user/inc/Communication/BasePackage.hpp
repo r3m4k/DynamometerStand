@@ -1,6 +1,6 @@
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __BASE_PACKAGE_HPP
-#define __BASE_PACKAGE_HPP
+#ifndef BASE_PACKAGE_HPP
+#define BASE_PACKAGE_HPP
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
@@ -21,19 +21,28 @@ namespace Packages{
     *  и len, которые необходимо определить в дочернем классе.
     *  ---------------------------------------------------------------------- */
     class BasePackage{
-        // virtual void DataPackaging() = 0;
-        // virtual uint8_t CountControlSum() = 0;
+    protected:
+        /**
+         * @brief   Первый байт заголовка пакета.
+         * @details Общий для всех пакетов, отправляемых устройством. Объявлен
+         *          как static constexpr поле базового класса — наследники
+         *          используют его без квалификации при формировании заголовка.
+         */
+        static constexpr uint8_t HeaderFirstByte  = 0xC8;
+
+        /**
+         * @brief   Второй байт заголовка пакета.
+         * @details См. HeaderFirstByte.
+         */
+        static constexpr uint8_t HeaderSecondByte = 0x8C;
 
     public:
         uint8_t *data_ptr;
         uint8_t len;
 
         BasePackage(): data_ptr(nullptr), len(0) {}
-        ~BasePackage(){};
-
-        // virtual void UpdateData() = 0;
-
+        ~BasePackage() = default;
     };
 
 } // namespace Packages
-#endif /*   __BASE_PACKAGE_HPP   */
+#endif /*   BASE_PACKAGE_HPP   */

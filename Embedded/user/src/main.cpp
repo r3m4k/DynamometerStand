@@ -9,12 +9,12 @@
 #include "GPTimers.hpp"
 #include "Leds.hpp"
 #include "GpioPin.hpp"
-#include "HX711.hpp"
-#include "HX711Package.hpp"
-#include "UsbPort.hpp"
 #include "Usart.hpp"
-#include "Message.hpp"
+
 #include "CommandProcessing.hpp"
+#include "MessagePackage.hpp"
+#include "HX711Package.hpp"
+#include "RingBuffer.hpp"
 
 // ----------------------------------------------------------------------------
 //
@@ -42,10 +42,7 @@ __IO uint8_t buttonState;
 // ===============================================================================
 
 /* Defines -------------------------------------------------------------------*/
-#define ENABLE_COMMAND_PROCESSING   1   // Дефайн для включения обработки поступивших
-                                        // команд (0 - выкл / 1 - вкл)
 #define IST_VECTORS_NUM     98          // Количество векторов прерываний
-#define MessageLen          8           // Длина отправляемых информационных сообщений
 
 /* Typedefs ------------------------------------------------------------------*/
 typedef void (* const pHandler)(void);
@@ -68,14 +65,16 @@ volatile bool hx711_reading_flag = false;
 // Светодиоды на плате
 STM_CppLib::Leds leds;
 
-#if ENABLE_COMMAND_PROCESSING
 // Обработчик поступивших команд
-STM_CppLib::Commands::CommandManager command_manager;
-#endif  /* ENABLE_COMMAND_PROCESSING */
+Commands::CommandManager command_manager;
 
-// Интерфейс связи
-STM_CppLib::UsbPort::UsbPort com_port;
-// STM_CppLib::USARTx com_port;
+// Интерфейс связи: USART1 на пинах PC4 (TX) и PC5 (RX)
+using PinTX_t = STM_CppLib::STM_GPIO::GPIO_Pin
+    <STM_CppLib::STM_GPIO::GPIO_Port::PortC, GPIO_PinSource4>;
+using PinRX_t = STM_CppLib::STM_GPIO::GPIO_Pin
+    <STM_CppLib::STM_GPIO::GPIO_Port::PortC, GPIO_PinSource5>;
+
+STM_CppLib::STM_Usart::Usart1<PinTX_t, PinRX_t> usart1;
 
 // Используемые таймеры -------------------------------------------------------
 
@@ -165,15 +164,17 @@ public:
     }
 };
 
-// Очередь стадий программ (используется для смены стадий программ)
-StaticQueue<ProgramStage*, 2> program_stage_queue;
+// -------------------------------------------------------------------------------
+
+// Очередь стадий программ (используется для смены стадий программ).
+RingBuffer<ProgramStage*, 2> program_stage_queue;
 
 // Поддерживаемые стадии программы
 ProgramStage FooStage(FooStage_init, FooStage_execute);
 ProgramStage MeasureStage(MeasureStage_init, MeasureStage_execute);
 
-// -------------------------------------------------------------------------------
 
+/* **************************************************************************** */
 
 int main()
 {
@@ -221,16 +222,18 @@ int main()
     while (true)
     {
        
-    #if ENABLE_COMMAND_PROCESSING
-        // Выполним поступившую команду при её наличии
-        if (!command_manager.command_queue.is_empty()){
+        // Выполним все поступившие команды при их наличии
+        while (!command_manager.command_queue.is_empty()){
             auto command = command_manager.command_queue.get();
             command.execute();
         }
-    #endif
 
-        // Сменим current_stage_ptr, если есть элементы в очереди program_stage_queue
+        // Сбросим флаг is_init у текущей стадии и сменим её, если есть элементы в очереди program_stage_queue
         if(!program_stage_queue.is_empty()){
+            if (current_stage_ptr){
+                // Сбросим флаг у текущей стадии
+                current_stage_ptr->is_init = false;
+            }    
             current_stage_ptr = program_stage_queue.get();
         }
 
@@ -261,7 +264,9 @@ void InitAll(){
     leds.Init();
     leds.LedsOn();
     
-    com_port.Init();
+    usart1.Init(115200);
+    usart1.EnableRxInterrupt();
+
     init_all_hx711();
 
     // Настройка таймеров --------------------------------------------------------
@@ -344,7 +349,8 @@ void init_all_hx711(){
 void read_all_hx711(){
     for(auto& hx711_variant : hx711_array){
         std::visit([](auto& hx711){
-                hx711.read_adc_val();
+                if (hx711.is_alive)
+                    hx711.read_adc_val();
             }, hx711_variant);
     }
 }
@@ -357,8 +363,8 @@ void send_all_hx711_packages(){
         package.UpdateData();
         package.UpdateControlSum();
 
-        // Отправим пакет по com порту
-        com_port.SendPackage(package);
+        // Отправим пакет по usart1
+        usart1.SendPackage(package);
     }
 }
 
@@ -366,25 +372,6 @@ void send_all_hx711_packages(){
 // -------------------------------------------------------------------------------
 // Функции для отработки поступивших команд
 // -------------------------------------------------------------------------------
-
-void UserEP3_OUT_Callback(uint8_t *buffer){
-#if ENABLE_COMMAND_PROCESSING
-    STM_CppLib::Message message(buffer);
-    com_port.EP3_OUT_Callback(message);
-#endif  /* ENABLE_COMMAND_PROCESSING */
-}
-
-void USART1_IRQHandler(void)
-{
-    if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) // было прерывание от приемника
-        __NOP();
-
-    if (USART_GetITStatus(USART1, USART_IT_TXE) != RESET){ // было прерывание от передатчика
-        while (USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET){} // дожидаюсь завершения выдачи текущего байта и отключаю прерывания от выдачи
-        USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
-    }
-    USART_ClearITPendingBit(USART1, USART_IT_ORE);
-}
 
 // Функции для перезагрузки МК
 void restart(){
@@ -403,25 +390,31 @@ void set_MeasureStage(){
 
 
 // -------------------------------------------------------------------------------
-// Отправка предопределённых сообщений
+// Отправка сообщений
 // -------------------------------------------------------------------------------
 
 void send_confirm_msg(){
-    constexpr uint8_t ConfirmMessage[MessageLen] = {0x7e, 0xe7, 0xff, 0xaa, 0xaa, 0xb8, 0};
-    STM_CppLib::Message message(ConfirmMessage, MessageLen);
-    com_port.SendMessage(message);   // В таком случае передаём lvalue ссылку
+    const char* text = "CONFIRM_RECEIVED_COMMAND";
+    Packages::MessagePackage msg_package(text, strlen(text));
+    usart1.SendPackage(msg_package);
 }
 
-void send_hello_msg(){
-    const char* text = "Dynamometer by Romanovskiy Roma\n";
-    STM_CppLib::Message message(reinterpret_cast<const uint8_t*>(text), strlen(text));
-    com_port.SendMessage(message);
+void send_handshake_ack(){
+    const char* text = "HX711_STM32_ACK";
+    Packages::MessagePackage msg_package(text, strlen(text));
+    usart1.SendPackage(msg_package);
+}
+
+void send_heartbeat_ack(){
+    const char* text = "HX711_STM32_ALIVE";
+    Packages::MessagePackage msg_package(text, strlen(text));
+    usart1.SendPackage(msg_package);
 }
 
 void send_error_msg(){
-    constexpr uint8_t ErrorMessage[MessageLen] = {0x7e, 0xe7, 0xff, 0xff, 0xff, 0x62, 0};
-    STM_CppLib::Message message(ErrorMessage, MessageLen);
-    com_port.SendMessage(message);
+    const char* text = "UNKNOWN_COMMAND";
+    Packages::MessagePackage msg_package(text, strlen(text));
+    usart1.SendPackage(msg_package);
 }
 
 
@@ -470,5 +463,10 @@ uint32_t L3GD20_TIMEOUT_UserCallback(void)
 uint32_t LSM303DLHC_TIMEOUT_UserCallback(void)
 {
     return 0;
+}
+
+void UserEP3_OUT_Callback(uint8_t *buffer)
+{
+    return;
 }
 // =======================================================================

@@ -103,24 +103,24 @@ void read_all_hx711();
 void send_all_hx711_packages();
 
 // Функции для отработки поступивших команд
-void UserEP3_OUT_Callback(uint8_t *buffer);
 void restart(void);
 void set_FooStage(void);
 void set_MeasureStage(void);
 
-// Отправка предопределённых сообщений
+// Отправка сообщений
 void send_confirm_msg(void);
-void send_hello_msg(void);
+void send_handshake_ack(void);
+void send_heartbeat_ack(void);
 void send_error_msg(void);
 
 // Системные функции
-void USART1_IRQHandler(void);
 void Error_Handler(void);
 void Delay(__IO uint32_t nTime);
 void TimingDelay_Decrement(void);
 
 uint32_t L3GD20_TIMEOUT_UserCallback(void);
 uint32_t LSM303DLHC_TIMEOUT_UserCallback(void);
+void UserEP3_OUT_Callback(uint8_t *buffer);
 
 #ifdef __cplusplus
 }
