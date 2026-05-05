@@ -89,8 +89,8 @@ namespace Decoder{
         Messages::SizedMessage<VCP_BUFFER_SIZE> current_message;   ///< Текущее собираемое сообщение
         DecoderStages decode_stage = DecoderStages::WantHeader;     ///< Текущее состояние автомата
         
-        DecodeFunc decode_func  = nullptr;      ///< Функция декодирования текущего пакета
-        uint8_t byte_index = 0;                 ///< Индекс следующего байта в current_message
+        DecodeFunc decode_func = nullptr;      ///< Функция декодирования текущего пакета
+        uint8_t byte_index = 0;                ///< Индекс следующего байта в current_message
 
         /// Скользящее окно из двух последних принятых байт в стадии WantHeader.
         /// Старший байт – предыдущий принятый, младший – самый свежий.

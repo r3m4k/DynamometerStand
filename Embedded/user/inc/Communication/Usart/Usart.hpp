@@ -32,18 +32,18 @@
 #include "BaseUsart.hpp"
 #include "UsartConfig.hpp"
 #include "UsartDescriptor.hpp"
-#include "DecoderImu.hpp"
+#include "DecoderHX711.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 
 /* Usings --------------------------------------------------------------------*/
 /**
  * @brief   Тип декодера, используемый для обработки принятых байтов.
- * @details По умолчанию используется DecoderImu из пространства имён Decoder.
+ * @details По умолчанию используется DecoderHX711 из пространства имён Decoder.
  *          Может быть заменён на другой тип, удовлетворяющий концепту
  *          HasVoidByteProcessing.
  */
-using UsartDecoder = Decoder::DecoderImu;
+using UsartDecoder = Decoder::DecoderHX711;
 
 /* Global variables ----------------------------------------------------------*/
 

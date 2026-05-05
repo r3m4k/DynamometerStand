@@ -14,8 +14,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 
-#include "Message.hpp"
-#include "CommandManager.hpp"
+#include "Messages.hpp"
+#include "BaseDecoder.hpp"
+#include "CommandProcessing.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 

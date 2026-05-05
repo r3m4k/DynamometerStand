@@ -18,8 +18,8 @@
 #include "VCP_F3.h"
 #include "hw_config.h"
 #include "BasePackage.hpp"
-#include "Message.hpp"
-#include "DecoderTelega.hpp"
+#include "Messages.hpp"
+#include "DecoderHX711.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 // TODO: убрать повторный define
@@ -34,7 +34,7 @@
  * @details По умолчанию используется DecoderTelega. Может быть заменён
  *          на другой тип, удовлетворяющий концепту HasVoidMessageProcessing.
  */
-using Decoder = DecoderTelega;
+using Decoder = DecoderHX711;
 #endif  /* ENABLE_COMMAND_PROCESSING */
 
 /* Global variables ----------------------------------------------------------*/

@@ -9,13 +9,12 @@
 #include "GPTimers.hpp"
 #include "Leds.hpp"
 #include "GpioPin.hpp"
-#include "HX711.hpp"
-#include "HX711Package.hpp"
-#include "UsbPort.hpp"
 #include "Usart.hpp"
-#include "Message.hpp"
-#include "CommandDescription.hpp"
-#include "CommandManager.hpp"
+
+#include "CommandProcessing.hpp"
+#include "MessagePackage.hpp"
+#include "HX711Package.hpp"
+#include "RingBuffer.hpp"
 
 // ----------------------------------------------------------------------------
 //
