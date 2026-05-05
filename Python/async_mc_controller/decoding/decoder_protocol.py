@@ -28,7 +28,7 @@ class DecoderProtocol(Protocol[T]):
     Attributes:
         received_data (T): Накопленные декодированные данные.
             Тип T определяется конкретной реализацией (например,
-            `dict[int, list[HX711Data]]`).
+            `dict[int, list[ImuData]]`).
         input_command (list[Command]): Список принятых команд.
     """
 

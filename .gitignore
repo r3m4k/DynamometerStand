@@ -7,5 +7,4 @@ Python/.venv/
 Python/**/*.json
 Python/**/__pycache__/
 Python/**/results/
-
-Python/.logs/
+Python/**/.logs/

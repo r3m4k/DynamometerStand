@@ -21,7 +21,7 @@ from utils import confirm_from_console
 #############################################
 
 # Количество пакетов данных, по которым будет построен график
-N = 5000
+N = 100
 
 # Директория для сохранения полученных графиков
 save_dir = Path(__file__).resolve().parent / 'results' / str(datetime.now().date())
