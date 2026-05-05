@@ -19,9 +19,11 @@
 #include "MicroTimer.hpp"
 
 /* Defines -------------------------------------------------------------------*/
+#define FOO_SENDING_DATA
 
 /* Global variables ----------------------------------------------------------*/
 extern STM_CppLib::STM_Timer::MicroTimer micro_timer; 
+extern uint32_t tick_counter;
 
 // -----------------------------------------------------------------------------
 namespace HX711
@@ -171,6 +173,13 @@ namespace HX711
          * @note    При таймауте ожидания готовности таймер останавливается и вызывается error_handler().
          */
         void read_adc_val(){
+        #ifdef FOO_SENDING_DATA
+            uint32_t omega = 3;
+            adc_value = static_cast<uint32_t>(sinf(omega * tick_counter));
+            return;
+        #endif /* FOO_SENDING_DATA */
+
+
             uint32_t data = 0;
             uint32_t timeout = HX711MaxTimeout;
 
