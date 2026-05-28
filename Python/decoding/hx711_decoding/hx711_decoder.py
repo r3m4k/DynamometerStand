@@ -83,7 +83,7 @@ class HX711Decoder:
         """Возвращает максимальное количество пакетов среди всех датчиков."""
         return max((len(v) for v in self.received_data.values()), default=0)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Строковое представление состояния декодера.
         Returns:
             str: Многострочная строка с информацией о декодере.

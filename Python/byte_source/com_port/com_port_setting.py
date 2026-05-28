@@ -7,7 +7,8 @@ from serial import Serial,  SerialException, SerialTimeoutException
 from config import config
 from utils import confirm_from_console
 from byte_source.bytes_source import BytesSource
-from byte_source.com_port import get_ComPorts, ComPort
+from byte_source.com_port import get_ComPorts
+from byte_source.com_port import ComPortHX711 as ComPort
 
 #########################
 
