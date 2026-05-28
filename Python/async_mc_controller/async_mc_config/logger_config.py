@@ -32,7 +32,7 @@ class LoggerConfig(BaseModel):
                           description='Директория для логов')
     log_filename: str  = Field('.logger.log', description='Имя файла лога')
     log_format: str  = Field(
-        '%(asctime)s - %(levelname)s - %(name)s:\n%(message)s',
+        '%(asctime)s - %(levelname)s - %(name)s: %(message)s',
         description='Строка форматирования логов'
     )
     date_format: str = Field('%Y-%m-%d %H:%M:%S', description='Формат даты')
