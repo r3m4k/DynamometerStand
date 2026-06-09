@@ -18,8 +18,8 @@
 #include "VCP_F3.h"
 #include "hw_config.h"
 #include "BasePackage.hpp"
-#include "Message.hpp"
-#include "DecoderTelega.hpp"
+#include "Messages.hpp"
+#include "DecoderHX711.hpp"
 
 /* Defines -------------------------------------------------------------------*/
 // TODO: убрать повторный define
@@ -34,7 +34,7 @@
  * @details По умолчанию используется DecoderTelega. Может быть заменён
  *          на другой тип, удовлетворяющий концепту HasVoidMessageProcessing.
  */
-using Decoder = DecoderTelega;
+using Decoder = DecoderHX711;
 #endif  /* ENABLE_COMMAND_PROCESSING */
 
 /* Global variables ----------------------------------------------------------*/
@@ -47,12 +47,12 @@ namespace STM_CppLib{
     /**
      * @brief   Концепт, проверяющий наличие метода message_processing(Message&).
      * @details Требует, чтобы тип Decoder имел метод
-     *          void message_processing(STM_CppLib::Message&).
+     *          void message_processing(Messages::Message&).
      *          Используется для статической проверки совместимости декодера
      *          с классом UsbPort.
      */
     template<typename T>
-    concept HasVoidMessageProcessing = requires(T decoder, STM_CppLib::Message& msg) {
+    concept HasVoidMessageProcessing = requires(T decoder, Messages::Message& msg) {
         { decoder.message_processing(msg) } -> std::same_as<void>;
     };
 
@@ -66,7 +66,7 @@ namespace STM_CppLib{
     #if ENABLE_COMMAND_PROCESSING
         static_assert(HasVoidMessageProcessing<Decoder>,
             "\n=== DECODER INTERFACE ERROR ===\n"
-            "Decoder type must provide: void message_processing(STM_CppLib::Message&)\n"
+            "Decoder type must provide: void message_processing(Messages::Message&)\n"
             "===============================\n");
     #endif  /* ENABLE_COMMAND_PROCESSING */
 
@@ -118,7 +118,7 @@ namespace STM_CppLib{
          * @param   message   Ссылка на принятое сообщение.
          * @details Передаёт сообщение декодеру для дальнейшей обработки.
          */
-        void EP3_OUT_Callback(STM_CppLib::Message& message){
+        void EP3_OUT_Callback(Messages::Message& message){
             decoder.message_processing(message);
         }
     #endif  /* ENABLE_COMMAND_PROCESSING */

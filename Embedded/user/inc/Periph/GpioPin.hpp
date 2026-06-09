@@ -35,14 +35,16 @@ namespace STM_CppLib{
         /**
          * @brief   Концепт, описывающий требования к типу пина GPIO для использования в шаблонах.
          * @tparam  T   Тип, который проверяется на соответствие концепту.
-         * @details Концепт требует наличия методов SetPin(), ResetPin(), ReadPin() и InitPin() с сигнатурами,
+         * @details Концепт требует наличия методов с сигнатурами,
          *          аналогичными методам класса GPIO_Pin из библиотеки STM_CppLib.
          * @note    Для проверки InitPin используются типы параметров GPIOMode_TypeDef, GPIOPuPd_TypeDef
          *          и указатель на GPIO_InitTypeDef; фактические значения не важны.
          */
         template <typename T>
         concept GpioPinConcept = requires(T pin) {
-            { pin.SetPin() }  -> std::same_as<void>;
+            { pin.get_port() }       -> std::same_as<GPIO_Port>;
+            { pin.get_pin_source() } -> std::same_as<uint8_t>;
+            { pin.SetPin() }   -> std::same_as<void>;
             { pin.ResetPin() } -> std::same_as<void>;
             { pin.ReadPin() }  -> std::same_as<BitAction>;
             { pin.InitPin(GPIOMode_TypeDef(), 
@@ -64,6 +66,19 @@ namespace STM_CppLib{
         class GPIO_Pin{
 
         public:
+
+            /**
+             * @brief   Возвращает значение порта GPIO, заданное шаблонным параметром.
+             * @return  GPIO_Port   Значение перечисления порта (PortA..PortF).
+             */
+            static constexpr GPIO_Port get_port() { return port; }
+
+            /**
+             * @brief   Возвращает номер вывода, заданный шаблонным параметром.
+             * @return  uint8_t     Номер вывода (0..15).
+             */
+            static constexpr uint8_t get_pin_source() { return pin_source; }
+
             /**
              * @brief   Инициализирует вывод с заданными параметрами.
              * @param   GPIO_Mode   Режим работы вывода (вход, выход, альтернативная функция и т.д.).
