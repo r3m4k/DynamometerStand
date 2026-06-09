@@ -56,8 +56,9 @@ namespace Packages{
 
         /**
          * @brief   Максимальная длина текста сообщения в байтах.
+         * @details MaxMsgLen = sizeof(Receive_Buffer) - sizeof(package_body.header) - sizeof(package_body.control_sum);
          */
-        static constexpr uint8_t MaxMsgLen = 32;
+        static constexpr uint8_t MaxMsgLen = 59;
 
         /**
          * @brief   Внутренний буфер пакета.
@@ -111,7 +112,7 @@ namespace Packages{
             // Установим поля базового класса. Фактическая длина пакета:
             // 4 байта header + msg_size байт текста + 1 байт control_sum.
             data_ptr = reinterpret_cast<uint8_t*>(&package_body);
-            len      = static_cast<uint8_t>(4 + msg_size + 1);
+            len = static_cast<uint8_t>(4 + msg_size + 1);
 
             // Позиция контрольной суммы внутри буфера — сразу за текстом.
             // Предварительно обнулим этот слот, чтобы он корректно учёлся

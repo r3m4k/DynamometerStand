@@ -54,8 +54,12 @@ extern pHandler __isr_vectors[];
  * Пользовательские переменные
  *************************************************************************** */
 
-// Собственная таблица прерываний
-__attribute__((aligned(128)))    // Cortex-M4 требует выравнивание по 128 байт!
+/**
+ * @brief   RAM-копия таблицы векторов прерываний.
+ * @details 98 векторов занимают 392 байта, поэтому VTOR должен указывать на
+ *          адрес, выровненный по ближайшей большей степени двойки: 512 байт.
+ */
+__attribute__((aligned(512)))
 _user_pHandler _user_vector_table[IST_VECTORS_NUM] = {0};
 
 // Необходимые счётчики и флаги
@@ -173,6 +177,10 @@ RingBuffer<ProgramStage*, 2> program_stage_queue;
 ProgramStage FooStage(FooStage_init, FooStage_execute);
 ProgramStage MeasureStage(MeasureStage_init, MeasureStage_execute);
 
+// Функция для смены стадии программы 
+void set_program_stage(ProgramStage& stage){
+    program_stage_queue.put(&stage);
+}
 
 /* **************************************************************************** */
 
@@ -214,7 +222,7 @@ int main()
 
     // ---------------------------------------------------------------------------
 
-    program_stage_queue.put(&FooStage);
+    set_program_stage(FooStage);
     ProgramStage* current_stage_ptr = nullptr;
 
     // ---------------------------------------------------------------------------
@@ -380,12 +388,12 @@ void restart(){
 
 // Функция для добавления FooStage в очередь program_stage_queue
 void set_FooStage(){
-    program_stage_queue.put(&FooStage);
+    set_program_stage(FooStage);
 }
 
 // Функция для добавления MeasureStage в очередь program_stage_queue
 void set_MeasureStage(){
-    program_stage_queue.put(&MeasureStage);
+    set_program_stage(MeasureStage);
 }
 
 

@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include "stm32f30x.h"
+#include "stm32f30x_rcc.h"
 #include "stm32f30x_gpio.h"
 #include "stm32f30x_exti.h"
 #include "stm32f30x_syscfg.h"
@@ -127,6 +128,7 @@ namespace STM_CppLib{
         void InitExti(EXTI_InitTypeDef* EXTI_InitStructure_ptr = nullptr){
             
             // Select the input source pin for the EXTI line
+            RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
             SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOx, EXTI_PinSourcex);
 
             if (!EXTI_InitStructure_ptr){

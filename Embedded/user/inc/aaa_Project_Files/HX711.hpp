@@ -175,7 +175,7 @@ namespace HX711
         void read_adc_val(){
         #ifdef FOO_SENDING_DATA
             uint32_t omega = 3;
-            adc_value = static_cast<uint32_t>(sinf(omega * tick_counter));
+            adc_value = static_cast<uint32_t>(sinf(omega * tick_counter) * 1000);
             return;
         #endif /* FOO_SENDING_DATA */
 
