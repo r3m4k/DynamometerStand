@@ -177,6 +177,10 @@ RingBuffer<ProgramStage*, 2> program_stage_queue;
 ProgramStage FooStage(FooStage_init, FooStage_execute);
 ProgramStage MeasureStage(MeasureStage_init, MeasureStage_execute);
 
+// Функция для смены стадии программы 
+void set_program_stage(ProgramStage& stage){
+    program_stage_queue.put(&stage);
+}
 
 /* **************************************************************************** */
 
@@ -218,7 +222,7 @@ int main()
 
     // ---------------------------------------------------------------------------
 
-    program_stage_queue.put(&MeasureStage);
+    set_program_stage(FooStage);
     ProgramStage* current_stage_ptr = nullptr;
 
     // ---------------------------------------------------------------------------
@@ -384,12 +388,12 @@ void restart(){
 
 // Функция для добавления FooStage в очередь program_stage_queue
 void set_FooStage(){
-    program_stage_queue.put(&FooStage);
+    set_program_stage(FooStage);
 }
 
 // Функция для добавления MeasureStage в очередь program_stage_queue
 void set_MeasureStage(){
-    program_stage_queue.put(&MeasureStage);
+    set_program_stage(MeasureStage);
 }
 
 
