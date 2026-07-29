@@ -1,161 +1,291 @@
 # -*- coding: utf-8 -*-
-"""Модуль для асинхронного чтения данных из COM-порта.
+from __future__ import annotations
 
-Содержит класс `ComPortReader`, который управляет фоновым потоком для
-непрерывного чтения байтов из COM-порта, их декодирования с помощью
-`Decoder` и передачи полученных пакетов в главный поток через сигналы.
-"""
+from multiprocessing import get_context
+from multiprocessing.queues import Queue
+from pathlib import Path
+from queue import Empty
+from threading import Event, Thread
+from typing import Any, Callable
 
-# System imports
-from typing import Optional
+from PyQt5.QtCore import QObject, pyqtSignal
 
-# External imports
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
+from config.com_port_config import ComPortConfig
+from config.logger_config import LoggerConfig
+from decoding.hx711_decoding import HX711Data
+from dynamometer_session.start_dynamometer_session import start_dynamometer_session
 
-# User imports
-from app_logger import app_logger
-from byte_source.com_port import ComPortHX711 as ComPort
-from byte_source.com_port import ComPortReadError
-from decoding import DecoderProtocol
-from decoding.hx711_decoding import HX711Decoder as Decoder
-from decoding.hx711_decoding import HX711Data as DataType
 
-##########################################################
+class ComPortReaderException(RuntimeError):
+    pass
 
-class ComPortReader(QObject):
-    """Класс для управления фоновым чтением данных из COM-порта.
 
-    Сигналы:
-        data_received(DataType): Испускается при получении нового пакета данных.
-        error_occurred(str): Испускается при возникновении ошибки чтения или декодирования.
-        finished(): Испускается после полной остановки потока и очистки ресурсов.
-    """
+class NeedConfiguration(ComPortReaderException):
+    pass
 
-    data_received = pyqtSignal(DataType)
+
+class SessionIsRunning(ComPortReaderException):
+    pass
+
+
+class SessionNotRunning(ComPortReaderException):
+    pass
+
+
+class MeasuringRunning(ComPortReaderException):
+    pass
+
+
+class MeasuringNotRunning(ComPortReaderException):
+    pass
+
+
+class _QueueReader(QObject):
+    item_received = pyqtSignal(object)
+
+    def __init__(self, queue: Queue) -> None:
+        super().__init__()
+        self._queue = queue
+        self._stop_event = Event()
+
+    def start(self) -> Thread:
+        thread = Thread(target=self._read_loop, daemon=True)
+        thread.start()
+        return thread
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    def _read_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                item = self._queue.get(timeout=0.1)
+            except Empty:
+                continue
+            except (EOFError, OSError):
+                return
+
+            self.item_received.emit(item)
+
+
+class _ComPortReaderWorker(QObject):
+    data_received = pyqtSignal(HX711Data)
+    handshake_done = pyqtSignal()
+    handshake_failed = pyqtSignal()
+    connection_failed = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
     finished = pyqtSignal()
 
-    # ------------------------------------------------------------------------------
+    _STOP_COMMAND = "STOP_RUNNING"
+    _HANDSHAKE_COMMAND = "HANDSHAKE_INIT"
+    _START_COMMAND = "START_MEASURING"
+    _STOP_MEASURING_COMMAND = "STOP_MEASURING"
 
-    class _ComPortReaderWorker(QObject):
-        """Внутренний класс, выполняющий чтение порта.
-
-        Сигналы:
-            data_received(DataType): Пробрасывается наружу.
-            error_occurred(str): Пробрасывается наружу.
-            finished(): Испускается при завершении работы (всегда).
-        """
-
-        data_received = pyqtSignal(DataType)
-        error_occurred = pyqtSignal(str)
-        finished = pyqtSignal()
-
-        def __init__(self, port: ComPort):
-            """Инициализирует воркер с заданным объектом порта.
-
-            Args:
-                port (ComPort): Объект для работы с COM-портом.
-            """
-            super().__init__()
-            self._com_port: ComPort = port
-            self._decoder: DecoderProtocol[dict[int, list[DataType]]] = Decoder()
-            self._reading_flag = False
-
-        def run(self) -> None:
-            """Основной метод, выполняемый в потоке.
-
-            Открывает порт, читает байты, передаёт их декодеру и отправляет
-            готовые пакеты через сигнал `data_received`. При ошибке испускает
-            `error_occurred`. В любом случае по завершении испускает `finished`.
-            """
-            self._reading_flag = True
-            try:
-                with self._com_port as port:
-                    while self._reading_flag:
-                        self._decoder.byte_processing(port.read_byte())
-                        for sensor_id in list(self._decoder.received_data.keys()):
-                            sensor_data = self._decoder.received_data[sensor_id]
-                            if sensor_data:
-                                self.data_received.emit(sensor_data.pop())
-            except ComPortReadError as e:
-                self.error_occurred.emit(f"Ошибка порта: {e}")
-            except Exception as e:
-                self.error_occurred.emit(f"Неизвестная ошибка: {e}")
-            finally:
-                self.finished.emit()
-                app_logger.debug(f'{self._decoder}')
-
-        def stop(self) -> None:
-            """Изменение внутреннего флага для завершения чтения данных из порта."""
-            self._reading_flag = False
-
-    # ------------------------------------------------------------------------------
-
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self._worker_thread: Optional[QThread] = None
-        self._worker: Optional[ComPortReader._ComPortReaderWorker] = None
-        self._com_port: Optional[ComPort] = None
+        self._ctx = get_context("spawn")
+        self._command_queue: Queue | None = None
+        self._response_queue: Queue | None = None
+        self._data_queue: Queue | None = None
+        self._process = None
+
+        self._response_reader: _QueueReader | None = None
+        self._data_reader: _QueueReader | None = None
+        self._response_thread: Thread | None = None
+        self._data_thread: Thread | None = None
+
+        self._configured = False
+        self._measuring = False
+
+        self._response_handlers: dict[str, Callable[[str], None]] = {
+            "HANDSHAKE_DONE": lambda _: self._on_handshake_done(),
+            "HANDSHAKE_FAILED": lambda _: self._on_handshake_failed(),
+            "CONNECTION_FAILED": self._on_connection_failed,
+            "READ_ERROR": self._on_error,
+            "DEVICE_LOST": self._on_error,
+            "COMMAND_ACK_TIMEOUT": self._on_error,
+            "COMMAND_REJECTED": self._on_error,
+        }
+
+    def configure(
+        self,
+        logger_config: LoggerConfig,
+        com_port_name: str,
+        baudrate: int,
+        bin_file: Path | None = None,
+    ) -> None:
+        if self.is_running:
+            raise SessionIsRunning("COM-port session is already running")
+
+        com_port_config = ComPortConfig(name=com_port_name, baudrate=baudrate)
+        self._command_queue = self._ctx.Queue()
+        self._response_queue = self._ctx.Queue()
+        self._data_queue = self._ctx.Queue()
+
+        self._response_reader = _QueueReader(self._response_queue)
+        self._data_reader = _QueueReader(self._data_queue)
+        self._response_reader.item_received.connect(self._handle_response)
+        self._data_reader.item_received.connect(self._handle_data)
+        self._response_thread = self._response_reader.start()
+        self._data_thread = self._data_reader.start()
+
+        self._process = self._ctx.Process(
+            target=start_dynamometer_session,
+            args=(
+                logger_config,
+                com_port_config,
+                bin_file,
+                self._command_queue,
+                self._response_queue,
+                self._data_queue,
+            ),
+            daemon=True,
+        )
+        self._process.start()
+        self._configured = True
+        self._put_command(self._HANDSHAKE_COMMAND)
+
+    def start_measuring(self) -> None:
+        self._ensure_session()
+        if self._measuring:
+            raise MeasuringRunning("Measuring is already running")
+
+        self._put_command(self._START_COMMAND)
+        self._measuring = True
+
+    def stop_measuring(self) -> None:
+        self._ensure_session()
+        if not self._measuring:
+            raise MeasuringNotRunning("Measuring is not running")
+
+        self._put_command(self._STOP_MEASURING_COMMAND)
+        self._measuring = False
+
+    def shutdown(self) -> None:
+        self._measuring = False
+        if self._command_queue is not None and self.is_running:
+            self._put_command(self._STOP_COMMAND)
+
+        if self._process is not None:
+            self._process.join(timeout=3.0)
+            if self._process.is_alive():
+                self._process.terminate()
+                self._process.join(timeout=1.0)
+
+        self._stop_queue_readers()
+        self._close_queues()
+        self._process = None
+        self._configured = False
+        self.finished.emit()
 
     @property
-    def is_active(self):
-        return self._worker is not None
+    def is_running(self) -> bool:
+        return self._process is not None and self._process.is_alive()
 
-    def configure_port(self, port_name: str, baudrate: int) -> None:
-        """Сохраняет параметры порта для последующего использования.
+    def _ensure_session(self) -> None:
+        if not self._configured or self._command_queue is None:
+            raise NeedConfiguration("COM-port session needs configuration")
+        if not self.is_running:
+            raise SessionNotRunning("COM-port session is not running")
 
-        Создаёт объект `ComPort` с указанными параметрами. Если чтение уже
-        запущено, порт нельзя изменить.
+    def _put_command(self, command: str) -> None:
+        if self._command_queue is None:
+            raise NeedConfiguration("COM-port session needs configuration")
+        self._command_queue.put(command)
 
-        Args:
-            port_name (str): Имя порта.
-            baudrate (int): Скорость работы порта.
+    def _handle_response(self, response: Any) -> None:
+        response_text = str(response)
+        message_type, _, payload = response_text.partition(":")
+        handler = self._response_handlers.get(message_type)
+        if handler is None:
+            self._on_error(response_text)
+            return
 
-        Raises:
-            ComPortReadError: Если чтение уже запущено.
-        """
-        if self._worker_thread is not None and self._worker_thread.isRunning():
-            raise ComPortReadError("Нельзя изменить порт во время чтения")
-        self._com_port = ComPort(port_name, baudrate, app_logger.info)
+        handler(payload.strip() or response_text)
 
-    def start_reading(self) -> None:
-        """Запускает фоновое чтение данных из порта.
+    def _handle_data(self, package: Any) -> None:
+        if isinstance(package, HX711Data):
+            self.data_received.emit(package)
 
-        Создаёт новый поток и воркер, перемещает воркер в поток, подключает сигналы и запускает поток.
+    def _on_handshake_done(self) -> None:
+        self.handshake_done.emit()
 
-        Raises:
-            ComPortReadError: Если порт не был предварительно настроен через `configure_port`,
-                          или чтение порта уже запущено.
-        """
-        if self._com_port is None:
-            raise ComPortReadError('Перед запуском необходимо выполнить конфигурацию порта!')
-        if self._worker_thread and self._worker_thread.isRunning():
-            raise ComPortReadError('Чтение порта уже запущено в другом потоке!')
+    def _on_handshake_failed(self) -> None:
+        self._configured = False
+        self._measuring = False
+        self.handshake_failed.emit()
 
-        self._worker_thread = QThread()
-        self._worker = self._ComPortReaderWorker(self._com_port)
-        self._worker.moveToThread(self._worker_thread)
+    def _on_connection_failed(self, message: str) -> None:
+        self._configured = False
+        self._measuring = False
+        self.connection_failed.emit(message)
 
-        # Подключаем сигналы
-        self._worker_thread.started.connect(self._worker.run)
-        self._worker_thread.finished.connect(self._worker_thread.deleteLater)
-        self._worker_thread.finished.connect(self._on_thread_finished)
+    def _on_error(self, message: str) -> None:
+        self._measuring = False
+        self.error_occurred.emit(message)
 
-        self._worker.data_received.connect(self.data_received)
-        self._worker.error_occurred.connect(self.error_occurred)
-        self._worker.finished.connect(self._worker_thread.quit)
-        self._worker.finished.connect(self._worker.deleteLater)
+    def _stop_queue_readers(self) -> None:
+        for reader in (self._response_reader, self._data_reader):
+            if reader is not None:
+                reader.stop()
 
-        # Запустим поток для чтения com порта
-        self._worker_thread.start()
+        for thread in (self._response_thread, self._data_thread):
+            if thread is not None:
+                thread.join(timeout=0.5)
 
-    def stop_reading(self) -> None:
-        """Остановка чтения порта."""
-        if self._worker is not None:
-            self._worker.stop()
+        self._response_reader = None
+        self._data_reader = None
+        self._response_thread = None
+        self._data_thread = None
 
-    def _on_thread_finished(self) -> None:
-        """Слот, вызываемый после завершения потока. Очищает ссылки и испускает сигнал."""
-        self._worker_thread = None
-        self._worker = None
-        self.finished.emit()
+    def _close_queues(self) -> None:
+        for queue in (self._command_queue, self._response_queue, self._data_queue):
+            if queue is None:
+                continue
+            queue.close()
+            queue.join_thread()
+
+        self._command_queue = None
+        self._response_queue = None
+        self._data_queue = None
+
+
+class ComPortReader(QObject):
+    data_received = pyqtSignal(HX711Data)
+    handshake_done = pyqtSignal()
+    handshake_failed = pyqtSignal()
+    connection_failed = pyqtSignal(str)
+    error_occurred = pyqtSignal(str)
+    finished = pyqtSignal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._worker = _ComPortReaderWorker()
+        self._worker.data_received.connect(self.data_received.emit)
+        self._worker.handshake_done.connect(self.handshake_done.emit)
+        self._worker.handshake_failed.connect(self.handshake_failed.emit)
+        self._worker.connection_failed.connect(self.connection_failed.emit)
+        self._worker.error_occurred.connect(self.error_occurred.emit)
+        self._worker.finished.connect(self.finished.emit)
+
+    def configure(
+        self,
+        logger_config: LoggerConfig,
+        com_port_name: str,
+        baudrate: int,
+        bin_file: Path | None = None,
+    ) -> None:
+        self._worker.configure(logger_config, com_port_name, baudrate, bin_file)
+
+    def start_measuring(self) -> None:
+        self._worker.start_measuring()
+
+    def stop_measuring(self) -> None:
+        self._worker.stop_measuring()
+
+    def shutdown(self) -> None:
+        self._worker.shutdown()
+
+    @property
+    def is_running(self) -> bool:
+        return self._worker.is_running

@@ -19,7 +19,7 @@ from PyQt5.QtGui import QIcon
 
 # User imports
 from config import config
-from byte_source.com_port import get_ComPorts
+from byte_source.com_port.utils import get_ComPorts
 
 ##########################################################
 

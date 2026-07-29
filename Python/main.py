@@ -1,6 +1,7 @@
 # System imports
 import sys
 import traceback
+from multiprocessing import freeze_support
 
 # External imports
 from PyQt5.QtWidgets import QApplication
@@ -35,6 +36,7 @@ class MyApplication(QApplication):
 
 if __name__ == "__main__":
     try:
+        freeze_support()
         app = MyApplication(sys.argv)
         app_logger.debug('Инициализация main_window')
         window = MainWindow()
